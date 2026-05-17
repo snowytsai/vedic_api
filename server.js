@@ -183,6 +183,98 @@ app.get("/api/vedic/yearly-forecast", async (req, res) => {
   }
 });
 
+app.get("/api/vedic/three-year-forecast", async (req, res) => {
+  try {
+    const { date, time, lat, lon, startYear } = req.query;
+
+    if (!date || !time || !lat || !lon) {
+      return res.status(400).json({
+        ok: false,
+        error: "缺少 date/time/lat/lon",
+      });
+    }
+
+    const firstYear = Number(
+      startYear || new Date().getFullYear()
+    );
+
+    const endYear = firstYear + 2;
+
+    const natal = await buildVedicChart(
+      date,
+      time,
+      lat,
+      lon
+    );
+
+    const natalLite = buildLiteChart(natal);
+    const dasha = buildDashaSummary(natal);
+
+    const periods = [];
+
+    for (let y = firstYear; y <= endYear; y++) {
+      for (let q = 1; q <= 4; q++) {
+        let month = "02";
+
+        if (q === 2) month = "05";
+        if (q === 3) month = "08";
+        if (q === 4) month = "11";
+
+        const transitDate = `${y}-${month}-15`;
+
+        const transitChart = await buildVedicChart(
+          transitDate,
+          time,
+          lat,
+          lon
+        );
+
+        const transitSummary = buildTransitSummary(
+          natal,
+          transitChart
+        );
+
+        periods.push({
+          year: y,
+          quarter: `Q${q}`,
+          label: `第 ${q} 季`,
+          transit_date: transitDate,
+          highlights: transitSummary.highlights || [],
+          planets: transitSummary.planets || {},
+          natal_ascendant:
+              transitSummary.natal_ascendant || null,
+        });
+      }
+    }
+
+    return res.json({
+      ok: true,
+      forecast: {
+        start_year: firstYear,
+        end_year: endYear,
+        birth: {
+          date,
+          time,
+          lat: Number(lat),
+          lon: Number(lon),
+        },
+        natal: natalLite,
+        dasha,
+        three_year_theme:
+          "此三年流年根據個人本命盤、大運資料，以及每季代表日的行運盤產生。AI 會根據這些資料分析未來三年的重要變化。",
+        periods,
+      },
+    });
+  } catch (error) {
+    console.error("three-year-forecast error:", error);
+
+    return res.status(500).json({
+      ok: false,
+      error: error.message || "三年流年計算失敗",
+    });
+  }
+});
+
 app.get("/api/vedic/debug", async (req, res) => {
   try {
     const dateStr = getDateStr(req.query.date);
