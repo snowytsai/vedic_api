@@ -275,6 +275,89 @@ app.get("/api/vedic/three-year-forecast", async (req, res) => {
   }
 });
 
+app.get("/api/vedic/ten-year-forecast", async (req, res) => {
+  try {
+    const { date, time, lat, lon, startYear } = req.query;
+
+    if (!date || !time || !lat || !lon) {
+      return res.status(400).json({
+        ok: false,
+        error: "缺少 date/time/lat/lon",
+      });
+    }
+
+    const firstYear = Number(
+      startYear || new Date().getFullYear()
+    );
+
+    const endYear = firstYear + 9;
+
+    const natal = await buildVedicChart(
+      date,
+      time,
+      lat,
+      lon
+    );
+
+    const natalLite = buildLiteChart(natal);
+    const dasha = buildDashaSummary(natal);
+
+    const years = [];
+
+    for (let y = firstYear; y <= endYear; y++) {
+      const transitDate = `${y}-06-15`;
+
+      const transitChart = await buildVedicChart(
+        transitDate,
+        time,
+        lat,
+        lon
+      );
+
+      const transitSummary = buildTransitSummary(
+        natal,
+        transitChart
+      );
+
+      years.push({
+        year: y,
+        transit_date: transitDate,
+        highlights: transitSummary.highlights || [],
+        planets: transitSummary.planets || {},
+        natal_ascendant:
+          transitSummary.natal_ascendant || null,
+      });
+    }
+
+    return res.json({
+      ok: true,
+      forecast: {
+        start_year: firstYear,
+        end_year: endYear,
+        birth: {
+          date,
+          time,
+          lat: Number(lat),
+          lon: Number(lon),
+        },
+        natal: natalLite,
+        dasha,
+        ten_year_theme:
+          "此十年流年根據個人本命盤、大運資料，以及每年代表日的行運盤產生。AI 會根據這些資料分析未來十年的長期人生變化。",
+        years,
+      },
+    });
+  } catch (error) {
+    console.error("ten-year-forecast error:", error);
+
+    return res.status(500).json({
+      ok: false,
+      error: error.message || "十年流年計算失敗",
+    });
+  }
+});
+
+
 app.get("/api/vedic/debug", async (req, res) => {
   try {
     const dateStr = getDateStr(req.query.date);
