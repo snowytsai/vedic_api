@@ -375,6 +375,81 @@ app.get("/api/vedic/debug", async (req, res) => {
   }
 });
 
+app.get("/api/vedic/weekly-fortune", async (req, res) => {
+  try {
+    const { date, time, lat, lon, startDate } = req.query;
+
+    if (!date || !time || !lat || !lon) {
+      return res.status(400).json({
+        ok: false,
+        error: "缺少 date/time/lat/lon",
+      });
+    }
+
+    const natal = await buildVedicChart(date, time, lat, lon);
+    const natalLite = buildLiteChart(natal);
+    const dasha = buildDashaSummary(natal);
+
+    const baseDate = startDate
+      ? new Date(startDate)
+      : new Date();
+
+    const days = [];
+
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(baseDate);
+      d.setDate(baseDate.getDate() + i);
+
+      const transitDate = d.toISOString().slice(0, 10);
+
+      const transitChart = await buildVedicChart(
+        transitDate,
+        time,
+        lat,
+        lon
+      );
+
+      const transitSummary = buildTransitSummary(natal, transitChart);
+
+      days.push({
+        day_index: i + 1,
+        label: `第 ${i + 1} 天`,
+        date: transitDate,
+        highlights: transitSummary.highlights || [],
+        planets: transitSummary.planets || {},
+        natal_ascendant: transitSummary.natal_ascendant || null,
+      });
+    }
+
+    return res.json({
+      ok: true,
+      forecast: {
+        start_date: days[0]?.date || null,
+        end_date: days[6]?.date || null,
+        birth: {
+          date,
+          time,
+          lat: Number(lat),
+          lon: Number(lon),
+        },
+        natal: natalLite,
+        dasha,
+        weekly_theme:
+          "此本週運勢根據個人本命盤、大運資料，以及未來 7 天每日行運盤產生。AI 會根據這些資料分析本週的短期能量變化。",
+        days,
+      },
+    });
+  } catch (error) {
+    console.error("weekly-fortune error:", error);
+
+    return res.status(500).json({
+      ok: false,
+      error: error.message || "本週運勢計算失敗",
+    });
+  }
+});
+
+
 app.listen(process.env.PORT || 3001, () => {
   console.log("vedic_api running");
   cleanOldFiles();
