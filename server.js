@@ -450,6 +450,88 @@ app.get("/api/vedic/weekly-fortune", async (req, res) => {
 });
 
 
+app.get("/api/vedic/monthly-fortune", async (req, res) => {
+  try {
+    const { date, time, lat, lon, year, month } = req.query;
+
+    if (!date || !time || !lat || !lon) {
+      return res.status(400).json({
+        ok: false,
+        error: "缺少 date/time/lat/lon",
+      });
+    }
+
+    const now = new Date();
+    const targetYear = Number(year || now.getFullYear());
+    const targetMonth = Number(month || now.getMonth() + 1);
+
+    const natal = await buildVedicChart(date, time, lat, lon);
+    const natalLite = buildLiteChart(natal);
+    const dasha = buildDashaSummary(natal);
+
+    const start = new Date(Date.UTC(targetYear, targetMonth - 1, 1));
+    const end = new Date(Date.UTC(targetYear, targetMonth, 0));
+
+    const weeks = [];
+    let weekIndex = 1;
+
+    for (let day = 1; day <= end.getUTCDate(); day += 7) {
+      const d = new Date(Date.UTC(targetYear, targetMonth - 1, day));
+      const transitDate = d.toISOString().slice(0, 10);
+
+      const transitChart = await buildVedicChart(
+        transitDate,
+        time,
+        lat,
+        lon
+      );
+
+      const transitSummary = buildTransitSummary(natal, transitChart);
+
+      weeks.push({
+        week_index: weekIndex,
+        label: `第 ${weekIndex} 週`,
+        date: transitDate,
+        highlights: transitSummary.highlights || [],
+        planets: transitSummary.planets || {},
+        natal_ascendant: transitSummary.natal_ascendant || null,
+      });
+
+      weekIndex++;
+    }
+
+    return res.json({
+      ok: true,
+      forecast: {
+        year: targetYear,
+        month: targetMonth,
+        month_label: `${targetYear}-${String(targetMonth).padStart(2, "0")}`,
+        start_date: start.toISOString().slice(0, 10),
+        end_date: end.toISOString().slice(0, 10),
+        birth: {
+          date,
+          time,
+          lat: Number(lat),
+          lon: Number(lon),
+        },
+        natal: natalLite,
+        dasha,
+        monthly_theme:
+          "此本月運勢根據個人本命盤、大運資料，以及當月每週代表日的行運盤產生。AI 會根據這些資料分析本月的重要短期變化。",
+        weeks,
+      },
+    });
+  } catch (error) {
+    console.error("monthly-fortune error:", error);
+
+    return res.status(500).json({
+      ok: false,
+      error: error.message || "本月運勢計算失敗",
+    });
+  }
+});
+
+
 app.listen(process.env.PORT || 3001, () => {
   console.log("vedic_api running");
   cleanOldFiles();
