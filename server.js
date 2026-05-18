@@ -4,7 +4,10 @@ import dotenv from "dotenv";
 import rateLimit from "express-rate-limit";
 
 import { cleanOldFiles } from "./services/cacheCleaner.js";
-import { buildVedicChart } from "./services/vedicChartService.js";
+import {
+  buildVedicChart,
+  buildLifePeriods,
+} from "./services/vedicChartService.js";
 
 import {
   buildLiteChart,
@@ -93,6 +96,37 @@ app.get("/api/vedic/dasha", async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ ok: false, error: "dasha failed" });
+  }
+});
+
+// 人生階段：幾歲到幾歲進入哪個 Mahadasha
+app.get("/api/vedic/life-periods", async (req, res) => {
+  try {
+    const dateStr = getDateStr(req.query.date);
+    const { time, lat, lon } = req.query;
+
+    const chart = await buildVedicChart(dateStr, time, lat, lon);
+
+    const periods = buildLifePeriods(dateStr, chart.dasha);
+
+    res.json({
+      ok: true,
+      birth: {
+        date: dateStr,
+        time: time || null,
+        lat: lat != null ? Number(lat) : null,
+        lon: lon != null ? Number(lon) : null,
+      },
+      life_periods: periods,
+      current: chart.dasha?.current || null,
+      current_antardasha: chart.dasha?.current_antardasha || null,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({
+      ok: false,
+      error: "life-periods failed",
+    });
   }
 });
 
@@ -194,19 +228,10 @@ app.get("/api/vedic/three-year-forecast", async (req, res) => {
       });
     }
 
-    const firstYear = Number(
-      startYear || new Date().getFullYear()
-    );
-
+    const firstYear = Number(startYear || new Date().getFullYear());
     const endYear = firstYear + 2;
 
-    const natal = await buildVedicChart(
-      date,
-      time,
-      lat,
-      lon
-    );
-
+    const natal = await buildVedicChart(date, time, lat, lon);
     const natalLite = buildLiteChart(natal);
     const dasha = buildDashaSummary(natal);
 
@@ -229,10 +254,7 @@ app.get("/api/vedic/three-year-forecast", async (req, res) => {
           lon
         );
 
-        const transitSummary = buildTransitSummary(
-          natal,
-          transitChart
-        );
+        const transitSummary = buildTransitSummary(natal, transitChart);
 
         periods.push({
           year: y,
@@ -241,8 +263,7 @@ app.get("/api/vedic/three-year-forecast", async (req, res) => {
           transit_date: transitDate,
           highlights: transitSummary.highlights || [],
           planets: transitSummary.planets || {},
-          natal_ascendant:
-              transitSummary.natal_ascendant || null,
+          natal_ascendant: transitSummary.natal_ascendant || null,
         });
       }
     }
@@ -286,19 +307,10 @@ app.get("/api/vedic/ten-year-forecast", async (req, res) => {
       });
     }
 
-    const firstYear = Number(
-      startYear || new Date().getFullYear()
-    );
-
+    const firstYear = Number(startYear || new Date().getFullYear());
     const endYear = firstYear + 9;
 
-    const natal = await buildVedicChart(
-      date,
-      time,
-      lat,
-      lon
-    );
-
+    const natal = await buildVedicChart(date, time, lat, lon);
     const natalLite = buildLiteChart(natal);
     const dasha = buildDashaSummary(natal);
 
@@ -314,18 +326,14 @@ app.get("/api/vedic/ten-year-forecast", async (req, res) => {
         lon
       );
 
-      const transitSummary = buildTransitSummary(
-        natal,
-        transitChart
-      );
+      const transitSummary = buildTransitSummary(natal, transitChart);
 
       years.push({
         year: y,
         transit_date: transitDate,
         highlights: transitSummary.highlights || [],
         planets: transitSummary.planets || {},
-        natal_ascendant:
-          transitSummary.natal_ascendant || null,
+        natal_ascendant: transitSummary.natal_ascendant || null,
       });
     }
 
@@ -356,7 +364,6 @@ app.get("/api/vedic/ten-year-forecast", async (req, res) => {
     });
   }
 });
-
 
 app.get("/api/vedic/debug", async (req, res) => {
   try {
@@ -390,9 +397,7 @@ app.get("/api/vedic/weekly-fortune", async (req, res) => {
     const natalLite = buildLiteChart(natal);
     const dasha = buildDashaSummary(natal);
 
-    const baseDate = startDate
-      ? new Date(startDate)
-      : new Date();
+    const baseDate = startDate ? new Date(startDate) : new Date();
 
     const days = [];
 
@@ -448,7 +453,6 @@ app.get("/api/vedic/weekly-fortune", async (req, res) => {
     });
   }
 });
-
 
 app.get("/api/vedic/monthly-fortune", async (req, res) => {
   try {
@@ -530,7 +534,6 @@ app.get("/api/vedic/monthly-fortune", async (req, res) => {
     });
   }
 });
-
 
 app.listen(process.env.PORT || 3001, () => {
   console.log("vedic_api running");
