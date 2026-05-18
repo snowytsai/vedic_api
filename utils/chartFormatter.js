@@ -82,7 +82,7 @@ export function buildPlanetStatus(chart) {
 
     if (p.dignity?.label) tags.push(p.dignity.label);
     if (p.retrograde) tags.push("逆行");
-    if (p.combust) tags.push("燒太陽");
+    if (p.combust) tags.push("日焚");
 
     return {
       key: p.key,
