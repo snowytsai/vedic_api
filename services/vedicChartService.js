@@ -531,3 +531,29 @@ export async function buildVedicChart(dateStr, time, lat, lon) {
     dasha
   };
 }
+
+function calculateAge(dateStr, targetDateStr) {
+  const birth = new Date(`${dateStr}T00:00:00Z`);
+  const target = new Date(`${targetDateStr}T00:00:00Z`);
+
+  return Math.floor(
+    (target - birth) / (365.2425 * 24 * 60 * 60 * 1000)
+  );
+}
+
+export function buildLifePeriods(dateStr, dasha) {
+  if (!dasha?.periods) return [];
+
+  return dasha.periods.map(period => {
+    const startAge = calculateAge(dateStr, period.start);
+    const endAge = calculateAge(dateStr, period.end);
+
+    return {
+      lord: period.lord,
+      start: period.start,
+      end: period.end,
+      start_age: startAge,
+      end_age: endAge,
+    };
+  });
+}
