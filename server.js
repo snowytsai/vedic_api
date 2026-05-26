@@ -535,6 +535,34 @@ app.get("/api/vedic/monthly-fortune", async (req, res) => {
   }
 });
 
+app.get("/api/vedic/current-transits", async (req, res) => {
+  try {
+    const today = new Date().toISOString().slice(0, 10);
+    const time = req.query.time || "12:00";
+    const lat = req.query.lat || 25.033;
+    const lon = req.query.lon || 121.5654;
+
+    const chart = await buildVedicChart(today, time, lat, lon);
+
+    return res.json({
+      ok: true,
+      mode: "collective",
+      date: today,
+      transit: {
+        planets: chart.main_planets || chart.planets || {},
+        ascendant: chart.ascendant || null,
+        chart,
+      },
+    });
+  } catch (error) {
+    console.error("current-transits error:", error);
+    return res.status(500).json({
+      ok: false,
+      error: error.message || "current-transits failed",
+    });
+  }
+});
+
 app.listen(process.env.PORT || 3001, () => {
   console.log("vedic_api running");
   cleanOldFiles();
