@@ -535,6 +535,10 @@ app.get("/api/vedic/monthly-fortune", async (req, res) => {
   }
 });
 
+// =========================
+// 集體星象：每日
+// =========================
+
 app.get("/api/vedic/current-transits", async (req, res) => {
   try {
     const today = new Date().toISOString().slice(0, 10);
@@ -576,6 +580,281 @@ app.get("/api/vedic/current-transits", async (req, res) => {
     return res.status(500).json({
       ok: false,
       error: error.message || "current-transits failed",
+    });
+  }
+});
+
+// =========================
+// 集體星象：本週
+// =========================
+
+app.get("/api/vedic/collective-weekly", async (req, res) => {
+  try {
+    const time = req.query.time || "12:00";
+    const lat = req.query.lat || 25.033;
+    const lon = req.query.lon || 121.5654;
+
+    const baseDate = new Date();
+
+    const days = [];
+
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(baseDate);
+      d.setDate(baseDate.getDate() + i);
+
+      const transitDate = d.toISOString().slice(0, 10);
+
+      const chart = await buildVedicChart(
+        transitDate,
+        time,
+        lat,
+        lon
+      );
+
+      const liteChart = buildLiteChart(chart);
+
+      days.push({
+        day_index: i + 1,
+        date: transitDate,
+        planets:
+          liteChart?.main_planets ||
+          liteChart?.planets ||
+          {},
+      });
+    }
+
+    return res.json({
+      ok: true,
+      mode: "collective_weekly",
+      days,
+    });
+  } catch (error) {
+    console.error(error);
+
+    return res.status(500).json({
+      ok: false,
+      error: "collective-weekly failed",
+    });
+  }
+});
+
+// =========================
+// 集體星象：本月
+// =========================
+
+app.get("/api/vedic/collective-monthly", async (req, res) => {
+  try {
+    const time = req.query.time || "12:00";
+    const lat = req.query.lat || 25.033;
+    const lon = req.query.lon || 121.5654;
+
+    const now = new Date();
+
+    const targetYear = now.getFullYear();
+    const targetMonth = now.getMonth() + 1;
+
+    const weeks = [];
+
+    for (let day = 1; day <= 28; day += 7) {
+      const d = new Date(
+        Date.UTC(targetYear, targetMonth - 1, day)
+      );
+
+      const transitDate = d.toISOString().slice(0, 10);
+
+      const chart = await buildVedicChart(
+        transitDate,
+        time,
+        lat,
+        lon
+      );
+
+      const liteChart = buildLiteChart(chart);
+
+      weeks.push({
+        date: transitDate,
+        planets:
+          liteChart?.main_planets ||
+          liteChart?.planets ||
+          {},
+      });
+    }
+
+    return res.json({
+      ok: true,
+      mode: "collective_monthly",
+      weeks,
+    });
+  } catch (error) {
+    console.error(error);
+
+    return res.status(500).json({
+      ok: false,
+      error: "collective-monthly failed",
+    });
+  }
+});
+
+// =========================
+// 集體星象：今年
+// =========================
+
+app.get("/api/vedic/collective-yearly", async (req, res) => {
+  try {
+    const time = req.query.time || "12:00";
+    const lat = req.query.lat || 25.033;
+    const lon = req.query.lon || 121.5654;
+
+    const targetYear = new Date().getFullYear();
+
+    const months = [];
+
+    for (let i = 1; i <= 12; i++) {
+      const month = String(i).padStart(2, "0");
+
+      const transitDate = `${targetYear}-${month}-15`;
+
+      const chart = await buildVedicChart(
+        transitDate,
+        time,
+        lat,
+        lon
+      );
+
+      const liteChart = buildLiteChart(chart);
+
+      months.push({
+        month: i,
+        date: transitDate,
+        planets:
+          liteChart?.main_planets ||
+          liteChart?.planets ||
+          {},
+      });
+    }
+
+    return res.json({
+      ok: true,
+      mode: "collective_yearly",
+      months,
+    });
+  } catch (error) {
+    console.error(error);
+
+    return res.status(500).json({
+      ok: false,
+      error: "collective-yearly failed",
+    });
+  }
+});
+
+// =========================
+// 集體星象：三年
+// =========================
+
+app.get("/api/vedic/collective-three-year", async (req, res) => {
+  try {
+    const time = req.query.time || "12:00";
+    const lat = req.query.lat || 25.033;
+    const lon = req.query.lon || 121.5654;
+
+    const startYear = new Date().getFullYear();
+
+    const periods = [];
+
+    for (let y = startYear; y <= startYear + 2; y++) {
+      for (let q = 1; q <= 4; q++) {
+        let month = "02";
+
+        if (q === 2) month = "05";
+        if (q === 3) month = "08";
+        if (q === 4) month = "11";
+
+        const transitDate = `${y}-${month}-15`;
+
+        const chart = await buildVedicChart(
+          transitDate,
+          time,
+          lat,
+          lon
+        );
+
+        const liteChart = buildLiteChart(chart);
+
+        periods.push({
+          year: y,
+          quarter: q,
+          date: transitDate,
+          planets:
+            liteChart?.main_planets ||
+            liteChart?.planets ||
+            {},
+        });
+      }
+    }
+
+    return res.json({
+      ok: true,
+      mode: "collective_three_year",
+      periods,
+    });
+  } catch (error) {
+    console.error(error);
+
+    return res.status(500).json({
+      ok: false,
+      error: "collective-three-year failed",
+    });
+  }
+});
+
+// =========================
+// 集體星象：十年
+// =========================
+
+app.get("/api/vedic/collective-ten-year", async (req, res) => {
+  try {
+    const time = req.query.time || "12:00";
+    const lat = req.query.lat || 25.033;
+    const lon = req.query.lon || 121.5654;
+
+    const startYear = new Date().getFullYear();
+
+    const years = [];
+
+    for (let y = startYear; y <= startYear + 9; y++) {
+      const transitDate = `${y}-06-15`;
+
+      const chart = await buildVedicChart(
+        transitDate,
+        time,
+        lat,
+        lon
+      );
+
+      const liteChart = buildLiteChart(chart);
+
+      years.push({
+        year: y,
+        date: transitDate,
+        planets:
+          liteChart?.main_planets ||
+          liteChart?.planets ||
+          {},
+      });
+    }
+
+    return res.json({
+      ok: true,
+      mode: "collective_ten_year",
+      years,
+    });
+  } catch (error) {
+    console.error(error);
+
+    return res.status(500).json({
+      ok: false,
+      error: "collective-ten-year failed",
     });
   }
 });
