@@ -612,15 +612,31 @@ app.get("/api/vedic/collective-weekly", async (req, res) => {
       );
 
       const liteChart = buildLiteChart(chart);
+      const planetStatus = buildPlanetStatus(chart);
 
       days.push({
         day_index: i + 1,
+        label: `第 ${i + 1} 天`,
         date: transitDate,
+
         planets:
           liteChart?.main_planets ||
           liteChart?.planets ||
+          planetStatus ||
+          chart?.main_planets ||
+          chart?.planets ||
           {},
+
+        ascendant:
+          liteChart?.ascendant ||
+          chart?.ascendant ||
+          null,
+
+        chart: liteChart,
+
+        raw_chart: chart,
       });
+      
     }
 
     return res.json({
@@ -670,14 +686,30 @@ app.get("/api/vedic/collective-monthly", async (req, res) => {
       );
 
       const liteChart = buildLiteChart(chart);
+      const planetStatus = buildPlanetStatus(chart);
 
       weeks.push({
+        week_index: weeks.length + 1,
         date: transitDate,
+
         planets:
           liteChart?.main_planets ||
           liteChart?.planets ||
+          planetStatus ||
+          chart?.main_planets ||
+          chart?.planets ||
           {},
+
+        ascendant:
+          liteChart?.ascendant ||
+          chart?.ascendant ||
+          null,
+
+        chart: liteChart,
+
+        raw_chart: chart,
       });
+      
     }
 
     return res.json({
@@ -722,15 +754,30 @@ app.get("/api/vedic/collective-yearly", async (req, res) => {
       );
 
       const liteChart = buildLiteChart(chart);
+      const planetStatus = buildPlanetStatus(chart);
 
       months.push({
         month: i,
         date: transitDate,
+
         planets:
           liteChart?.main_planets ||
           liteChart?.planets ||
+          planetStatus ||
+          chart?.main_planets ||
+          chart?.planets ||
           {},
+
+        ascendant:
+          liteChart?.ascendant ||
+          chart?.ascendant ||
+          null,
+
+        chart: liteChart,
+
+        raw_chart: chart,
       });
+      
     }
 
     return res.json({
@@ -780,16 +827,32 @@ app.get("/api/vedic/collective-three-year", async (req, res) => {
         );
 
         const liteChart = buildLiteChart(chart);
+        const planetStatus = buildPlanetStatus(chart);
 
         periods.push({
           year: y,
           quarter: q,
+          label: `${y} Q${q}`,
           date: transitDate,
+
           planets:
             liteChart?.main_planets ||
             liteChart?.planets ||
+            planetStatus ||
+            chart?.main_planets ||
+            chart?.planets ||
             {},
+
+          ascendant:
+            liteChart?.ascendant ||
+            chart?.ascendant ||
+            null,
+
+          chart: liteChart,
+
+          raw_chart: chart,
         });
+        
       }
     }
 
@@ -833,15 +896,30 @@ app.get("/api/vedic/collective-ten-year", async (req, res) => {
       );
 
       const liteChart = buildLiteChart(chart);
+      const planetStatus = buildPlanetStatus(chart);
 
       years.push({
         year: y,
         date: transitDate,
+
         planets:
           liteChart?.main_planets ||
           liteChart?.planets ||
+          planetStatus ||
+          chart?.main_planets ||
+          chart?.planets ||
           {},
+
+        ascendant:
+          liteChart?.ascendant ||
+          chart?.ascendant ||
+          null,
+
+        chart: liteChart,
+
+        raw_chart: chart,
       });
+      
     }
 
     return res.json({
