@@ -543,15 +543,32 @@ app.get("/api/vedic/current-transits", async (req, res) => {
     const lon = req.query.lon || 121.5654;
 
     const chart = await buildVedicChart(today, time, lat, lon);
+    const liteChart = buildLiteChart(chart);
+    const planetStatus = buildPlanetStatus(chart);
 
     return res.json({
       ok: true,
       mode: "collective",
       date: today,
+      location: {
+        time,
+        lat: Number(lat),
+        lon: Number(lon),
+      },
       transit: {
-        planets: chart.main_planets || chart.planets || {},
-        ascendant: chart.ascendant || null,
-        chart,
+        planets:
+          liteChart?.main_planets ||
+          liteChart?.planets ||
+          planetStatus ||
+          chart?.main_planets ||
+          chart?.planets ||
+          {},
+        ascendant:
+          liteChart?.ascendant ||
+          chart?.ascendant ||
+          null,
+        chart: liteChart,
+        raw_chart: chart,
       },
     });
   } catch (error) {
