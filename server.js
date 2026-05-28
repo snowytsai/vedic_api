@@ -572,7 +572,6 @@ app.get("/api/vedic/current-transits", async (req, res) => {
           chart?.ascendant ||
           null,
         chart: liteChart,
-        raw_chart: chart,
       },
     });
   } catch (error) {
@@ -634,7 +633,6 @@ app.get("/api/vedic/collective-weekly", async (req, res) => {
 
         chart: liteChart,
 
-        raw_chart: chart,
       });
       
     }
@@ -706,8 +704,6 @@ app.get("/api/vedic/collective-monthly", async (req, res) => {
           null,
 
         chart: liteChart,
-
-        raw_chart: chart,
       });
       
     }
@@ -775,7 +771,6 @@ app.get("/api/vedic/collective-yearly", async (req, res) => {
 
         chart: liteChart,
 
-        raw_chart: chart,
       });
       
     }
@@ -850,7 +845,6 @@ app.get("/api/vedic/collective-three-year", async (req, res) => {
 
           chart: liteChart,
 
-          raw_chart: chart,
         });
         
       }
@@ -917,7 +911,6 @@ app.get("/api/vedic/collective-ten-year", async (req, res) => {
 
         chart: liteChart,
 
-        raw_chart: chart,
       });
       
     }
@@ -940,4 +933,3 @@ app.get("/api/vedic/collective-ten-year", async (req, res) => {
 app.listen(process.env.PORT || 3001, () => {
   console.log("vedic_api running");
   cleanOldFiles();
-});
