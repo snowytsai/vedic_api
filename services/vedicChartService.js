@@ -433,7 +433,10 @@ export async function buildVedicChart(dateStr, time, lat, lon) {
   const planets = [];
 
   for (const planet of PLANETS) {
-    const raw = await fetchPlanetVector(planet.command, 0);
+    const raw = await fetchPlanetVector(
+  planet.command,
+  dateStr
+);
     const parsed = parseVectorRaw(raw);
 
     const retrograde = isRetrograde(parsed);
