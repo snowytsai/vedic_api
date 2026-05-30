@@ -28,9 +28,12 @@ export async function fetchPlanetVector(
     VEC_TABLE: "3"
   });
 
-  const url = `https://ssd.jpl.nasa.gov/api/horizons.api?${params.toString()}`;
+  const url =
+    `https://ssd.jpl.nasa.gov/api/horizons.api?${params.toString()}`;
 
-  console.log("🌐 JPL URL:", url);
+  console.log(
+    `🌐 JPL URL (${command}) ${startDate}`
+  );
 
   let lastError;
 
@@ -39,7 +42,9 @@ export async function fetchPlanetVector(
       const response = await fetch(url);
 
       if (!response.ok) {
-        throw new Error(`JPL HTTP ${response.status}`);
+        throw new Error(
+          `JPL HTTP ${response.status}`
+        );
       }
 
       const data = await response.json();
@@ -54,7 +59,10 @@ export async function fetchPlanetVector(
     } catch (error) {
       lastError = error;
 
-      console.error(`❌ JPL retry ${i + 1} failed:`, error?.message || error);
+      console.error(
+        `❌ JPL retry ${i + 1} failed:`,
+        error?.message || error
+      );
 
       if (i < 2) {
         await sleep(1500 * (i + 1));
@@ -62,5 +70,7 @@ export async function fetchPlanetVector(
     }
   }
 
-  throw lastError || new Error("Unknown JPL fetch error");
+  throw lastError || new Error(
+    "Unknown JPL fetch error"
+  );
 }
