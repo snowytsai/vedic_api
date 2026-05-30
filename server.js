@@ -35,6 +35,88 @@ function getDateStr(dateParam) {
   return new Date().toISOString().slice(0, 10);
 }
 
+function buildImportantAstrologyEvents(planets = [], mode = "daily") {
+  const events = [];
+
+  const planetList = Array.isArray(planets)
+    ? planets
+    : Object.values(planets);
+
+  const sun = planetList.find((p) => p.name === "太陽" || p.key === "sun");
+  const moon = planetList.find((p) => p.name === "月亮" || p.key === "moon");
+
+  // 新月
+  if (
+    sun?.sidereal?.longitude != null &&
+    moon?.sidereal?.longitude != null
+  ) {
+    let diff = Math.abs(
+      sun.sidereal.longitude - moon.sidereal.longitude
+    );
+
+    if (diff > 180) diff = 360 - diff;
+
+    if (diff <= 12) {
+      events.push({
+        type: "new_moon",
+        level: "high",
+        title: "新月",
+        description: "新週期開始，適合設定新目標。"
+      });
+    }
+
+    if (diff >= 168) {
+      events.push({
+        type: "full_moon",
+        level: "high",
+        title: "滿月",
+        description: "情緒與事件容易來到高峰。"
+      });
+    }
+  }
+
+  // 逆行
+  planetList.forEach((p) => {
+    if (p?.retrograde) {
+      events.push({
+        type: "retrograde",
+        level: "medium",
+        title: `${p.name || p.key || "行星"}逆行`,
+        description: "適合回顧、修正與重新整理。"
+      });
+    }
+  });
+
+  // 日焚
+  planetList.forEach((p) => {
+    if (p?.combust) {
+      events.push({
+        type: "combust",
+        level: "medium",
+        title: `${p.name || p.key || "行星"}日焚`,
+        description: "行星能量受到太陽強烈影響。"
+      });
+    }
+  });
+
+  // 月亮宿
+  if (moon?.nakshatra) {
+    events.push({
+      type: "nakshatra",
+      level: "low",
+      title: `月亮位於 ${moon.nakshatra?.name || moon.nakshatra}`,
+      description: `今日月亮能量受到 ${moon.nakshatra?.name || moon.nakshatra} 影響。`
+    });
+  }
+
+  return events;
+}
+
+function buildHighlightsFromEvents(events = []) {
+  return events.slice(0, 5).map((e) => e.title);
+}
+
+
 // =========================
 // API
 // =========================
@@ -534,7 +616,6 @@ app.get("/api/vedic/monthly-fortune", async (req, res) => {
     });
   }
 });
-
 // =========================
 // 集體星象：每日
 // =========================
@@ -548,7 +629,12 @@ app.get("/api/vedic/current-transits", async (req, res) => {
 
     const chart = await buildVedicChart(today, time, lat, lon);
     const liteChart = buildLiteChart(chart);
-    const planetStatus = buildPlanetStatus(chart);
+
+    const rawPlanets = chart?.planets || [];
+    const displayPlanets = liteChart?.main_planets || {};
+
+    const importantEvents =
+      buildImportantAstrologyEvents(rawPlanets, "daily");
 
     return res.json({
       ok: true,
@@ -560,13 +646,9 @@ app.get("/api/vedic/current-transits", async (req, res) => {
         lon: Number(lon),
       },
       transit: {
-        planets:
-          liteChart?.main_planets ||
-          liteChart?.planets ||
-          planetStatus ||
-          chart?.main_planets ||
-          chart?.planets ||
-          {},
+        planets: displayPlanets,
+        important_events: importantEvents,
+        highlights: buildHighlightsFromEvents(importantEvents),
         ascendant:
           liteChart?.ascendant ||
           chart?.ascendant ||
@@ -594,7 +676,6 @@ app.get("/api/vedic/collective-weekly", async (req, res) => {
     const lon = req.query.lon || 121.5654;
 
     const baseDate = new Date();
-
     const days = [];
 
     for (let i = 0; i < 7; i++) {
@@ -603,28 +684,25 @@ app.get("/api/vedic/collective-weekly", async (req, res) => {
 
       const transitDate = d.toISOString().slice(0, 10);
 
-      const chart = await buildVedicChart(
-        transitDate,
-        time,
-        lat,
-        lon
-      );
-
+      const chart = await buildVedicChart(transitDate, time, lat, lon);
       const liteChart = buildLiteChart(chart);
-      const planetStatus = buildPlanetStatus(chart);
+
+      const rawPlanets = chart?.planets || [];
+      const displayPlanets = liteChart?.main_planets || {};
+
+      const importantEvents =
+        buildImportantAstrologyEvents(rawPlanets, "weekly");
 
       days.push({
         day_index: i + 1,
         label: `第 ${i + 1} 天`,
         date: transitDate,
 
-        planets:
-          liteChart?.main_planets ||
-          liteChart?.planets ||
-          planetStatus ||
-          chart?.main_planets ||
-          chart?.planets ||
-          {},
+        planets: displayPlanets,
+
+        important_events: importantEvents,
+
+        highlights: buildHighlightsFromEvents(importantEvents),
 
         ascendant:
           liteChart?.ascendant ||
@@ -632,9 +710,7 @@ app.get("/api/vedic/collective-weekly", async (req, res) => {
           null,
 
         chart: liteChart,
-
       });
-      
     }
 
     return res.json({
@@ -643,11 +719,11 @@ app.get("/api/vedic/collective-weekly", async (req, res) => {
       days,
     });
   } catch (error) {
-    console.error(error);
+    console.error("collective-weekly error:", error);
 
     return res.status(500).json({
       ok: false,
-      error: "collective-weekly failed",
+      error: error.message || "collective-weekly failed",
     });
   }
 });
@@ -670,33 +746,28 @@ app.get("/api/vedic/collective-monthly", async (req, res) => {
     const weeks = [];
 
     for (let day = 1; day <= 28; day += 7) {
-      const d = new Date(
-        Date.UTC(targetYear, targetMonth - 1, day)
-      );
-
+      const d = new Date(Date.UTC(targetYear, targetMonth - 1, day));
       const transitDate = d.toISOString().slice(0, 10);
 
-      const chart = await buildVedicChart(
-        transitDate,
-        time,
-        lat,
-        lon
-      );
-
+      const chart = await buildVedicChart(transitDate, time, lat, lon);
       const liteChart = buildLiteChart(chart);
-      const planetStatus = buildPlanetStatus(chart);
+
+      const rawPlanets = chart?.planets || [];
+      const displayPlanets = liteChart?.main_planets || {};
+
+      const importantEvents =
+        buildImportantAstrologyEvents(rawPlanets, "monthly");
 
       weeks.push({
         week_index: weeks.length + 1,
+        label: `第 ${weeks.length + 1} 週`,
         date: transitDate,
 
-        planets:
-          liteChart?.main_planets ||
-          liteChart?.planets ||
-          planetStatus ||
-          chart?.main_planets ||
-          chart?.planets ||
-          {},
+        planets: displayPlanets,
+
+        important_events: importantEvents,
+
+        highlights: buildHighlightsFromEvents(importantEvents),
 
         ascendant:
           liteChart?.ascendant ||
@@ -705,20 +776,22 @@ app.get("/api/vedic/collective-monthly", async (req, res) => {
 
         chart: liteChart,
       });
-      
     }
 
     return res.json({
       ok: true,
       mode: "collective_monthly",
+      year: targetYear,
+      month: targetMonth,
+      month_label: `${targetYear}-${String(targetMonth).padStart(2, "0")}`,
       weeks,
     });
   } catch (error) {
-    console.error(error);
+    console.error("collective-monthly error:", error);
 
     return res.status(500).json({
       ok: false,
-      error: "collective-monthly failed",
+      error: error.message || "collective-monthly failed",
     });
   }
 });
@@ -734,35 +807,29 @@ app.get("/api/vedic/collective-yearly", async (req, res) => {
     const lon = req.query.lon || 121.5654;
 
     const targetYear = new Date().getFullYear();
-
     const months = [];
 
     for (let i = 1; i <= 12; i++) {
       const month = String(i).padStart(2, "0");
-
       const transitDate = `${targetYear}-${month}-15`;
 
-      const chart = await buildVedicChart(
-        transitDate,
-        time,
-        lat,
-        lon
-      );
-
+      const chart = await buildVedicChart(transitDate, time, lat, lon);
       const liteChart = buildLiteChart(chart);
-      const planetStatus = buildPlanetStatus(chart);
+
+      const rawPlanets = chart?.planets || [];
+      const displayPlanets = liteChart?.main_planets || {};
+
+      const importantEvents =
+        buildImportantAstrologyEvents(rawPlanets, "yearly");
 
       months.push({
         month: i,
+        label: `${i} 月`,
         date: transitDate,
 
-        planets:
-          liteChart?.main_planets ||
-          liteChart?.planets ||
-          planetStatus ||
-          chart?.main_planets ||
-          chart?.planets ||
-          {},
+        planets: displayPlanets,
+        important_events: importantEvents,
+        highlights: buildHighlightsFromEvents(importantEvents),
 
         ascendant:
           liteChart?.ascendant ||
@@ -770,22 +837,21 @@ app.get("/api/vedic/collective-yearly", async (req, res) => {
           null,
 
         chart: liteChart,
-
       });
-      
     }
 
     return res.json({
       ok: true,
       mode: "collective_yearly",
+      year: targetYear,
       months,
     });
   } catch (error) {
-    console.error(error);
+    console.error("collective-yearly error:", error);
 
     return res.status(500).json({
       ok: false,
-      error: "collective-yearly failed",
+      error: error.message || "collective-yearly failed",
     });
   }
 });
@@ -801,10 +867,11 @@ app.get("/api/vedic/collective-three-year", async (req, res) => {
     const lon = req.query.lon || 121.5654;
 
     const startYear = new Date().getFullYear();
+    const endYear = startYear + 2;
 
     const periods = [];
 
-    for (let y = startYear; y <= startYear + 2; y++) {
+    for (let y = startYear; y <= endYear; y++) {
       for (let q = 1; q <= 4; q++) {
         let month = "02";
 
@@ -814,15 +881,14 @@ app.get("/api/vedic/collective-three-year", async (req, res) => {
 
         const transitDate = `${y}-${month}-15`;
 
-        const chart = await buildVedicChart(
-          transitDate,
-          time,
-          lat,
-          lon
-        );
-
+        const chart = await buildVedicChart(transitDate, time, lat, lon);
         const liteChart = buildLiteChart(chart);
-        const planetStatus = buildPlanetStatus(chart);
+
+        const rawPlanets = chart?.planets || [];
+        const displayPlanets = liteChart?.main_planets || {};
+
+        const importantEvents =
+          buildImportantAstrologyEvents(rawPlanets, "three_year");
 
         periods.push({
           year: y,
@@ -830,13 +896,9 @@ app.get("/api/vedic/collective-three-year", async (req, res) => {
           label: `${y} Q${q}`,
           date: transitDate,
 
-          planets:
-            liteChart?.main_planets ||
-            liteChart?.planets ||
-            planetStatus ||
-            chart?.main_planets ||
-            chart?.planets ||
-            {},
+          planets: displayPlanets,
+          important_events: importantEvents,
+          highlights: buildHighlightsFromEvents(importantEvents),
 
           ascendant:
             liteChart?.ascendant ||
@@ -844,23 +906,23 @@ app.get("/api/vedic/collective-three-year", async (req, res) => {
             null,
 
           chart: liteChart,
-
         });
-        
       }
     }
 
     return res.json({
       ok: true,
       mode: "collective_three_year",
+      start_year: startYear,
+      end_year: endYear,
       periods,
     });
   } catch (error) {
-    console.error(error);
+    console.error("collective-three-year error:", error);
 
     return res.status(500).json({
       ok: false,
-      error: "collective-three-year failed",
+      error: error.message || "collective-three-year failed",
     });
   }
 });
@@ -876,33 +938,30 @@ app.get("/api/vedic/collective-ten-year", async (req, res) => {
     const lon = req.query.lon || 121.5654;
 
     const startYear = new Date().getFullYear();
+    const endYear = startYear + 9;
 
     const years = [];
 
-    for (let y = startYear; y <= startYear + 9; y++) {
+    for (let y = startYear; y <= endYear; y++) {
       const transitDate = `${y}-06-15`;
 
-      const chart = await buildVedicChart(
-        transitDate,
-        time,
-        lat,
-        lon
-      );
-
+      const chart = await buildVedicChart(transitDate, time, lat, lon);
       const liteChart = buildLiteChart(chart);
-      const planetStatus = buildPlanetStatus(chart);
+
+      const rawPlanets = chart?.planets || [];
+      const displayPlanets = liteChart?.main_planets || {};
+
+      const importantEvents =
+        buildImportantAstrologyEvents(rawPlanets, "ten_year");
 
       years.push({
         year: y,
+        label: `${y}`,
         date: transitDate,
 
-        planets:
-          liteChart?.main_planets ||
-          liteChart?.planets ||
-          planetStatus ||
-          chart?.main_planets ||
-          chart?.planets ||
-          {},
+        planets: displayPlanets,
+        important_events: importantEvents,
+        highlights: buildHighlightsFromEvents(importantEvents),
 
         ascendant:
           liteChart?.ascendant ||
@@ -910,26 +969,26 @@ app.get("/api/vedic/collective-ten-year", async (req, res) => {
           null,
 
         chart: liteChart,
-
       });
-      
     }
 
     return res.json({
       ok: true,
       mode: "collective_ten_year",
+      start_year: startYear,
+      end_year: endYear,
       years,
     });
   } catch (error) {
-    console.error(error);
+    console.error("collective-ten-year error:", error);
 
     return res.status(500).json({
       ok: false,
-      error: "collective-ten-year failed",
+      error: error.message || "collective-ten-year failed",
     });
   }
 });
-
 app.listen(process.env.PORT || 3001, () => {
   console.log("vedic_api running");
   cleanOldFiles();
+
