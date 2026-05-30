@@ -8,6 +8,24 @@ function roundDegree(value) {
   return Math.round(value * 100) / 100;
 }
 
+function getNakshatraName(planet) {
+  const n = planet?.nakshatra;
+
+  if (typeof n === "string") return n;
+
+  return (
+    n?.name ||
+    n?.nakshatra ||
+    n?.nakshatra_name ||
+    n?.nakshatraName ||
+    n?.label ||
+    planet?.nakshatra_name ||
+    planet?.nakshatraName ||
+    planet?.nakshatraLabel ||
+    null
+  );
+}
+
 function getPlanet(chart, name) {
   return chart?.planets?.find(p => p.name === name) || null;
 }
@@ -15,13 +33,16 @@ function getPlanet(chart, name) {
 function formatPlanetBasic(planet) {
   if (!planet) return null;
 
+  const nakshatraName = getNakshatraName(planet);
+
   return {
     key: planet.key,
     name: planet.name,
     sign: planet.sidereal?.sign || null,
     degree: roundDegree(planet.sidereal?.degree),
     house: planet.house ?? null,
-    nakshatra: planet.nakshatra?.name || null,
+    nakshatra: nakshatraName,
+    nakshatra_name: nakshatraName,
     navamsa: planet.navamsa?.sign || null,
     dignity: planet.dignity?.label || "一般",
     dignity_status: planet.dignity?.status || "neutral",
@@ -84,13 +105,17 @@ export function buildPlanetStatus(chart) {
     if (p.retrograde) tags.push("逆行");
     if (p.combust) tags.push("日焚");
 
+    const nakshatraName = getNakshatraName(p);
+
     return {
       key: p.key,
       name: p.name,
       sign: p.sidereal?.sign || null,
       house: p.house ?? null,
+      nakshatra: nakshatraName,
+      nakshatra_name: nakshatraName,
       status_tags: tags,
-      summary: `${p.name}在${p.sidereal?.sign || "未知星座"}，第${p.house ?? "未知"}宮，${tags.length ? tags.join("、") : "一般"}`
+      summary: `${p.name}在${p.sidereal?.sign || "未知星座"}，第${p.house ?? "未知"}宮，${nakshatraName ? `Nakshatra：${nakshatraName}，` : ""}${tags.length ? tags.join("、") : "一般"}`
     };
   });
 }
@@ -125,8 +150,12 @@ export function buildDashaSummary(chart) {
       : null,
     moon_nakshatra: dasha.moon_nakshatra
       ? {
-          name: dasha.moon_nakshatra.name,
-          lord: dasha.moon_nakshatra.lord
+          name:
+            dasha.moon_nakshatra.name ||
+            dasha.moon_nakshatra.nakshatra ||
+            dasha.moon_nakshatra.nakshatra_name ||
+            null,
+          lord: dasha.moon_nakshatra.lord || null
         }
       : null
   };
@@ -154,6 +183,8 @@ export function buildTransitSummary(natal, transitChart) {
     const p = transitChart?.planets?.find(x => x.name === name);
     if (!p) return null;
 
+    const nakshatraName = getNakshatraName(p);
+
     return {
       name: p.name,
       sign: p.sidereal?.sign || null,
@@ -161,7 +192,8 @@ export function buildTransitSummary(natal, transitChart) {
         ? Math.round(p.sidereal.degree * 100) / 100
         : null,
       house_from_natal_asc: getHouseFromNatalAsc(p.sidereal?.sign),
-      nakshatra: p.nakshatra?.name || null,
+      nakshatra: nakshatraName,
+      nakshatra_name: nakshatraName,
       retrograde: !!p.retrograde,
       combust: !!p.combust
     };
