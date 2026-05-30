@@ -2,13 +2,13 @@ function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-export async function fetchPlanetVector(command, dayOffset = 0) {
-  const base = new Date();
-  base.setUTCDate(base.getUTCDate() + dayOffset);
+export async function fetchPlanetVector(
+  command,
+  targetDate
+) {
+  const startDate = targetDate;
 
-  const startDate = base.toISOString().slice(0, 10);
-
-  const next = new Date(base);
+  const next = new Date(`${targetDate}T00:00:00Z`);
   next.setUTCDate(next.getUTCDate() + 1);
 
   const stopDate = next.toISOString().slice(0, 10);
