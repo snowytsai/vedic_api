@@ -209,13 +209,11 @@ export function buildTransitSummary(natal, transitChart) {
     if (typeof distance !== "number") return null;
 
     const aspects = [
-      const aspects = [
-        { type: "conjunction", label: "合相", angle: 0, orb: 6 },
-        { type: "opposition", label: "對分", angle: 180, orb: 6 },
-        { type: "trine", label: "三分", angle: 120, orb: 5 },
-        { type: "square", label: "四分", angle: 90, orb: 4 },
-        { type: "sextile", label: "六合", angle: 60, orb: 3 }
-];
+      { type: "conjunction", label: "合相", angle: 0, orb: 12 },
+      { type: "opposition", label: "對分", angle: 180, orb: 12 },
+      { type: "trine", label: "三分", angle: 120, orb: 10 },
+      { type: "square", label: "四分", angle: 90, orb: 10 },
+      { type: "sextile", label: "六合", angle: 60, orb: 8 }
     ];
 
     for (const aspect of aspects) {
