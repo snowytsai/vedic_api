@@ -545,18 +545,23 @@ export function buildTransitSummary(natal, transitChart) {
       });
     });
 
-    personalizedHighlights.forEach(item => {
-      items.push({
-        type: "transit_house_position",
-        title: item.title,
-        description: item.description,
-        summary: item.summary,
-        priority:
-          getTransitPriority(item.planet) +
-          getHousePriority(item.house_from_natal_asc),
-        data: item
+    if (
+      transitNatalAspects.length === 0 &&
+      transitHouseLordAspects.length === 0
+    ) {
+      personalizedHighlights.forEach(item => {
+        items.push({
+          type: "transit_house_position",
+          title: item.title,
+          description: item.description,
+          summary: item.summary,
+          priority:
+            getTransitPriority(item.planet) +
+            getHousePriority(item.house_from_natal_asc),
+          data: item
+        });
       });
-    });
+    }
 
     const seen = new Set();
 
@@ -663,3 +668,4 @@ export function buildTransitSummary(natal, transitChart) {
     highlight_cards: personalized_highlights
   };
 }
+
