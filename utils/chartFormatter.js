@@ -199,6 +199,54 @@ export function buildTransitSummary(natal, transitChart) {
     };
   }
 
+  function buildPersonalHighlight(key, planet) {
+    if (!planet?.house_from_natal_asc) return null;
+
+    const house = planet.house_from_natal_asc;
+    const title = `${planet.name}行運第${house}宮`;
+
+    const parts = [];
+
+    if (planet.sign) {
+      parts.push(`${planet.name}目前在${planet.sign}`);
+    }
+
+    if (typeof planet.degree === "number") {
+      parts.push(`${planet.degree}°`);
+    }
+
+    if (planet.nakshatra_name) {
+      parts.push(`Nakshatra：${planet.nakshatra_name}`);
+    }
+
+    parts.push(`從你的本命上升${ascSign || "未知上升"}看，落在第${house}宮`);
+
+    if (planet.retrograde) {
+      parts.push("目前為逆行狀態");
+    }
+
+    if (planet.combust) {
+      parts.push("目前有日焚狀態");
+    }
+
+    const description = parts.join("，");
+
+    return {
+      key,
+      planet: planet.name,
+      title,
+      description,
+      summary: `${title}｜${description}`,
+      house_from_natal_asc: house,
+      sign: planet.sign,
+      degree: planet.degree,
+      nakshatra: planet.nakshatra,
+      nakshatra_name: planet.nakshatra_name,
+      retrograde: planet.retrograde,
+      combust: planet.combust
+    };
+  }
+
   const planets = {
     sun: getTransitPlanet("太陽"),
     moon: getTransitPlanet("月亮"),
@@ -211,6 +259,7 @@ export function buildTransitSummary(natal, transitChart) {
     ketu: getTransitPlanet("Ketu")
   };
 
+  // 舊版相容：Daily 原本吃 highlights 字串，不動它
   const highlights = [];
 
   if (planets.jupiter?.house_from_natal_asc) {
@@ -229,10 +278,27 @@ export function buildTransitSummary(natal, transitChart) {
     highlights.push(`Ketu行運第${planets.ketu.house_from_natal_asc}宮`);
   }
 
+  // 新版：給 Flutter「重要個人星象」卡片用
+  // 這裡不是預設解讀文案，而是用實際 transitChart 算出的星座、度數、Nakshatra、逆行、日焚、宮位組成
+  const personalized_highlights = [
+    buildPersonalHighlight("jupiter", planets.jupiter),
+    buildPersonalHighlight("saturn", planets.saturn),
+    buildPersonalHighlight("rahu", planets.rahu),
+    buildPersonalHighlight("ketu", planets.ketu)
+  ].filter(Boolean);
+
   return {
     natal_ascendant: natal?.ascendant || null,
     transit_date: new Date().toISOString().slice(0, 10),
     planets,
-    highlights
+
+    // 舊欄位：保留，不弄壞 Daily
+    highlights,
+
+    // 新欄位：Flutter 卡片可直接用 title / description
+    personalized_highlights,
+
+    // 備用別名
+    highlight_cards: personalized_highlights
   };
 }
