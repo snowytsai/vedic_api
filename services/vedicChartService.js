@@ -1,562 +1,660 @@
-import { PLANETS } from "../utils/planetMap.js";
-import { fetchPlanetVector } from "./horizonsClient.js";
-import { parseVectorRaw } from "./ephemerisParser.js";
-
 // =========================
-// 工具
+// Chart Formatter
+// 給 App / GPT 使用的精簡輸出整理
 // =========================
 
-function normalizeDegree(deg) {
-  return ((deg % 360) + 360) % 360;
+function roundDegree(value) {
+  if (typeof value !== "number") return null;
+  return Math.round(value * 100) / 100;
 }
 
-const VEDIC_SIGNS = [
-  "牡羊座", "金牛座", "雙子座", "巨蟹座",
-  "獅子座", "處女座", "天秤座", "天蠍座",
-  "射手座", "摩羯座", "水瓶座", "雙魚座"
-];
+function getNakshatraName(planet) {
+  const n = planet?.nakshatra;
 
-const SIGN_LORDS = {
-  "牡羊座": "火星",
-  "金牛座": "金星",
-  "雙子座": "水星",
-  "巨蟹座": "月亮",
-  "獅子座": "太陽",
-  "處女座": "水星",
-  "天秤座": "金星",
-  "天蠍座": "火星",
-  "射手座": "木星",
-  "摩羯座": "土星",
-  "水瓶座": "土星",
-  "雙魚座": "木星"
-};
+  if (typeof n === "string") return n;
 
-const DIGNITY_TABLE = {
-  "太陽": { exalted: "牡羊座", debilitated: "天秤座" },
-  "月亮": { exalted: "金牛座", debilitated: "天蠍座" },
-  "火星": { exalted: "摩羯座", debilitated: "巨蟹座" },
-  "水星": { exalted: "處女座", debilitated: "雙魚座" },
-  "木星": { exalted: "巨蟹座", debilitated: "摩羯座" },
-  "金星": { exalted: "雙魚座", debilitated: "處女座" },
-  "土星": { exalted: "天秤座", debilitated: "牡羊座" }
-};
-
-const NAKSHATRAS = [
-  { name: "Ashwini", lord: "Ketu" },
-  { name: "Bharani", lord: "Venus" },
-  { name: "Krittika", lord: "Sun" },
-  { name: "Rohini", lord: "Moon" },
-  { name: "Mrigashira", lord: "Mars" },
-  { name: "Ardra", lord: "Rahu" },
-  { name: "Punarvasu", lord: "Jupiter" },
-  { name: "Pushya", lord: "Saturn" },
-  { name: "Ashlesha", lord: "Mercury" },
-  { name: "Magha", lord: "Ketu" },
-  { name: "Purva Phalguni", lord: "Venus" },
-  { name: "Uttara Phalguni", lord: "Sun" },
-  { name: "Hasta", lord: "Moon" },
-  { name: "Chitra", lord: "Mars" },
-  { name: "Swati", lord: "Rahu" },
-  { name: "Vishakha", lord: "Jupiter" },
-  { name: "Anuradha", lord: "Saturn" },
-  { name: "Jyeshtha", lord: "Mercury" },
-  { name: "Mula", lord: "Ketu" },
-  { name: "Purva Ashadha", lord: "Venus" },
-  { name: "Uttara Ashadha", lord: "Sun" },
-  { name: "Shravana", lord: "Moon" },
-  { name: "Dhanishta", lord: "Mars" },
-  { name: "Shatabhisha", lord: "Rahu" },
-  { name: "Purva Bhadrapada", lord: "Jupiter" },
-  { name: "Uttara Bhadrapada", lord: "Saturn" },
-  { name: "Revati", lord: "Mercury" }
-];
-
-const DASHA_SEQUENCE = [
-  "Ketu", "Venus", "Sun", "Moon", "Mars",
-  "Rahu", "Jupiter", "Saturn", "Mercury"
-];
-
-const DASHA_YEARS = {
-  Ketu: 7,
-  Venus: 20,
-  Sun: 6,
-  Moon: 10,
-  Mars: 7,
-  Rahu: 18,
-  Jupiter: 16,
-  Saturn: 19,
-  Mercury: 17
-};
-
-const COMBUST_ORB = {
-  "月亮": 12,
-  "水星": 14,
-  "金星": 10,
-  "火星": 8,
-  "木星": 11,
-  "土星": 15
-};
-
-function getAngularDistance(a, b) {
-  const diff = Math.abs(a - b);
-  return Math.min(diff, 360 - diff);
-}
-
-function isCombust(planet, sunLongitude) {
-  if (planet.name === "太陽") return false;
-  if (planet.name === "Rahu") return false;
-  if (planet.name === "Ketu") return false;
-
-  const orb = COMBUST_ORB[planet.name];
-  if (!orb) return false;
-
-  const distance = getAngularDistance(
-    planet.sidereal.longitude,
-    sunLongitude
+  return (
+    n?.name ||
+    n?.nakshatra ||
+    n?.nakshatra_name ||
+    n?.nakshatraName ||
+    n?.label ||
+    planet?.nakshatra_name ||
+    planet?.nakshatraName ||
+    planet?.nakshatraLabel ||
+    null
   );
-
-  return distance <= orb;
 }
 
-function isRetrograde(parsedVector) {
-  if (!parsedVector) return false;
-  if (typeof parsedVector.vx !== "number") return false;
-  return parsedVector.vx < 0;
+function getPlanet(chart, name) {
+  return chart?.planets?.find(p => p.name === name) || null;
 }
 
-function getSignIndex(signName) {
-  return VEDIC_SIGNS.indexOf(signName);
-}
+function formatPlanetBasic(planet) {
+  if (!planet) return null;
 
-function getSignLord(signName) {
-  return SIGN_LORDS[signName] || null;
-}
-
-function getHouseFromSigns(planetSign, ascSign) {
-  const planetIndex = getSignIndex(planetSign);
-  const ascIndex = getSignIndex(ascSign);
-
-  if (planetIndex === -1 || ascIndex === -1) return null;
-
-  return ((planetIndex - ascIndex + 12) % 12) + 1;
-}
-
-function getDrishtiOffsets(planetName) {
-  if (planetName === "土星") return [3, 7, 10];
-  if (planetName === "木星") return [5, 7, 9];
-  if (planetName === "火星") return [4, 7, 8];
-  return [7];
-}
-
-function calculateAspects(planet, houses) {
-  if (!planet.house || !houses) return [];
-
-  const offsets = getDrishtiOffsets(planet.name);
-
-  return offsets.map(offset => {
-    const targetHouse = ((planet.house - 1 + offset) % 12) + 1;
-    const target = houses.find(h => h.house === targetHouse);
-
-    return {
-      type: `${offset}th`,
-      house: targetHouse,
-      sign: target?.sign || null
-    };
-  });
-}
-
-function getPlanetDignity(planetName, sign) {
-  const table = DIGNITY_TABLE[planetName];
-
-  if (!table) return { status: "neutral", label: "一般" };
-
-  if (sign === table.exalted) return { status: "exalted", label: "擢升" };
-  if (sign === table.debilitated) return { status: "debilitated", label: "失勢" };
-  if (getSignLord(sign) === planetName) return { status: "own", label: "本位" };
-
-  return { status: "neutral", label: "一般" };
-}
-
-function buildHouseLords(houses, planets) {
-  if (!houses || !planets) return [];
-
-  return houses.map(house => {
-    const lordName = getSignLord(house.sign);
-    const lordPlanet = planets.find(p => p.name === lordName);
-
-    return {
-      house: house.house,
-      sign: house.sign,
-      lord: lordName,
-      lord_house: lordPlanet?.house ?? null
-    };
-  });
-}
-
-function getApproxLahiriAyanamsa(year) {
-  return 24.1 + (year - 2025) * 0.01397;
-}
-
-function tropicalToSidereal(longitude, year) {
-  return normalizeDegree(longitude - getApproxLahiriAyanamsa(year));
-}
-
-function degreeToVedicSign(longitude) {
-  const normalized = normalizeDegree(longitude);
-  const index = Math.floor(normalized / 30);
+  const nakshatraName = getNakshatraName(planet);
 
   return {
-    sign: VEDIC_SIGNS[index],
-    degree: normalized % 30
+    key: planet.key,
+    name: planet.name,
+    sign: planet.sidereal?.sign || null,
+    degree: roundDegree(planet.sidereal?.degree),
+    house: planet.house ?? null,
+    nakshatra: nakshatraName,
+    nakshatra_name: nakshatraName,
+    navamsa: planet.navamsa?.sign || null,
+    dignity: planet.dignity?.label || "一般",
+    dignity_status: planet.dignity?.status || "neutral",
+    retrograde: !!planet.retrograde,
+    combust: !!planet.combust
   };
 }
 
-function getNakshatra(longitude) {
-  const size = 360 / 27;
-
-  const index = Math.min(
-    26,
-    Math.floor(normalizeDegree(longitude) / size)
-  );
-
-  const nak = NAKSHATRAS[index];
-
-  const start = index * size;
-  const positionInNakshatra = normalizeDegree(longitude) - start;
-  const progress = positionInNakshatra / size;
+export function buildLiteChart(chart) {
+  const sun = getPlanet(chart, "太陽");
+  const moon = getPlanet(chart, "月亮");
+  const mercury = getPlanet(chart, "水星");
+  const venus = getPlanet(chart, "金星");
+  const mars = getPlanet(chart, "火星");
+  const jupiter = getPlanet(chart, "木星");
+  const saturn = getPlanet(chart, "土星");
+  const rahu = getPlanet(chart, "Rahu");
+  const ketu = getPlanet(chart, "Ketu");
 
   return {
-    name: nak.name,
-    lord: nak.lord,
-    index,
-    progress
+    ascendant: chart?.ascendant
+      ? {
+          sign: chart.ascendant.sign,
+          degree: roundDegree(chart.ascendant.degree)
+        }
+      : null,
+
+    main_planets: {
+      sun: formatPlanetBasic(sun),
+      moon: formatPlanetBasic(moon),
+      mercury: formatPlanetBasic(mercury),
+      venus: formatPlanetBasic(venus),
+      mars: formatPlanetBasic(mars),
+      jupiter: formatPlanetBasic(jupiter),
+      saturn: formatPlanetBasic(saturn),
+      rahu: formatPlanetBasic(rahu),
+      ketu: formatPlanetBasic(ketu)
+    },
+
+    current_dasha: chart?.dasha
+      ? {
+          mahadasha: chart.dasha.current?.lord || null,
+          mahadasha_start: chart.dasha.current?.start || null,
+          mahadasha_end: chart.dasha.current?.end || null,
+          antardasha: chart.dasha.current_antardasha?.lord || null,
+          antardasha_start: chart.dasha.current_antardasha?.start || null,
+          antardasha_end: chart.dasha.current_antardasha?.end || null
+        }
+      : null
   };
 }
 
-function getNavamsaSign(longitude) {
-  const normalized = normalizeDegree(longitude);
-  const signIndex = Math.floor(normalized / 30);
-  const degreeInSign = normalized % 30;
+export function buildPlanetStatus(chart) {
+  const planets = chart?.planets || [];
 
-  const navamsaIndex = Math.floor(degreeInSign / (30 / 9));
-  const navamsaSignIndex = (signIndex * 9 + navamsaIndex) % 12;
+  return planets.map(p => {
+    const tags = [];
 
-  return VEDIC_SIGNS[navamsaSignIndex];
-}
+    if (p.dignity?.label) tags.push(p.dignity.label);
+    if (p.retrograde) tags.push("逆行");
+    if (p.combust) tags.push("日焚");
 
-function addYears(date, years) {
-  const result = new Date(date);
-  result.setTime(result.getTime() + years * 365.2425 * 24 * 60 * 60 * 1000);
-  return result;
-}
-
-function formatDate(date) {
-  return date.toISOString().slice(0, 10);
-}
-
-function getBirthDate(dateStr, timeStr) {
-  const safeTime = timeStr || "00:00";
-  return new Date(`${dateStr}T${safeTime}:00Z`);
-}
-
-function buildAntardashaPeriods(mahadashaLord, mahaStart, mahaEnd) {
-  const mahaYears = DASHA_YEARS[mahadashaLord];
-  const startIndex = DASHA_SEQUENCE.indexOf(mahadashaLord);
-
-  if (startIndex === -1 || !mahaYears) return [];
-
-  const periods = [];
-  let cursor = new Date(mahaStart);
-
-  for (let i = 0; i < 9; i++) {
-    const subLord = DASHA_SEQUENCE[(startIndex + i) % DASHA_SEQUENCE.length];
-    const subYears = (mahaYears * DASHA_YEARS[subLord]) / 120;
-    const next = addYears(cursor, subYears);
-
-    periods.push({
-      lord: subLord,
-      years: subYears,
-      start: formatDate(cursor),
-      end: formatDate(next)
-    });
-
-    cursor = next;
-  }
-
-  return periods;
-}
-
-function buildVimshottariDasha(dateStr, timeStr, moonLongitude) {
-  if (!dateStr || moonLongitude == null) return null;
-
-  const birthDate = getBirthDate(dateStr, timeStr);
-  const moonNakshatra = getNakshatra(moonLongitude);
-  const startLord = moonNakshatra.lord;
-
-  const startIndex = DASHA_SEQUENCE.indexOf(startLord);
-  if (startIndex === -1) return null;
-
-  const fullYears = DASHA_YEARS[startLord];
-  const elapsedYears = fullYears * moonNakshatra.progress;
-  const remainingYears = fullYears - elapsedYears;
-
-  const periodStart = addYears(birthDate, -elapsedYears);
-  const periodEnd = addYears(birthDate, remainingYears);
-
-  const periods = [];
-
-  periods.push({
-    lord: startLord,
-    years: fullYears,
-    start: formatDate(periodStart),
-    end: formatDate(periodEnd),
-    is_birth_dasha: true,
-    antardashas: buildAntardashaPeriods(startLord, periodStart, periodEnd)
-  });
-
-  let cursor = periodEnd;
-
-  for (let i = 1; i < 18; i++) {
-    const lord = DASHA_SEQUENCE[(startIndex + i) % DASHA_SEQUENCE.length];
-    const years = DASHA_YEARS[lord];
-    const next = addYears(cursor, years);
-
-    periods.push({
-      lord,
-      years,
-      start: formatDate(cursor),
-      end: formatDate(next),
-      is_birth_dasha: false,
-      antardashas: buildAntardashaPeriods(lord, cursor, next)
-    });
-
-    cursor = next;
-  }
-
-  const now = new Date();
-
-  const current = periods.find(p => {
-    const start = new Date(`${p.start}T00:00:00Z`);
-    const end = new Date(`${p.end}T00:00:00Z`);
-    return now >= start && now < end;
-  }) || null;
-
-  const currentAntardasha = current?.antardashas?.find(p => {
-    const start = new Date(`${p.start}T00:00:00Z`);
-    const end = new Date(`${p.end}T00:00:00Z`);
-    return now >= start && now < end;
-  }) || null;
-
-  return {
-    system: "Vimshottari Dasha",
-    total_years: 120,
-    moon_nakshatra: moonNakshatra,
-    birth_dasha_lord: startLord,
-    birth_dasha_balance_years: remainingYears,
-    current,
-    current_antardasha: currentAntardasha,
-    periods
-  };
-}
-
-function getJulianDate(dateStr, timeStr) {
-  const date = new Date(`${dateStr}T${timeStr}:00Z`);
-  return date.getTime() / 86400000 + 2440587.5;
-}
-
-function getGMST(jd) {
-  const T = (jd - 2451545.0) / 36525.0;
-
-  const gmst =
-    280.46061837 +
-    360.98564736629 * (jd - 2451545.0) +
-    0.000387933 * T * T -
-    (T * T * T) / 38710000;
-
-  return normalizeDegree(gmst);
-}
-
-function buildWholeSignHouses(ascendant) {
-  if (!ascendant) return null;
-
-  const ascIndex = getSignIndex(ascendant.sign);
-
-  return Array.from({ length: 12 }, (_, i) => {
-    const signIndex = (ascIndex + i) % 12;
+    const nakshatraName = getNakshatraName(p);
 
     return {
-      house: i + 1,
-      sign: VEDIC_SIGNS[signIndex]
+      key: p.key,
+      name: p.name,
+      sign: p.sidereal?.sign || null,
+      house: p.house ?? null,
+      nakshatra: nakshatraName,
+      nakshatra_name: nakshatraName,
+      status_tags: tags,
+      summary: `${p.name}在${p.sidereal?.sign || "未知星座"}，第${p.house ?? "未知"}宮，${nakshatraName ? `Nakshatra：${nakshatraName}，` : ""}${tags.length ? tags.join("、") : "一般"}`
     };
   });
 }
 
-function calculateAscendant(dateStr, timeStr, lat, lon) {
-  const jd = getJulianDate(dateStr, timeStr);
-  const gmst = getGMST(jd);
-  const lst = normalizeDegree(gmst + Number(lon));
+export function buildDashaSummary(chart) {
+  const dasha = chart?.dasha;
 
-  const obliquity = 23.4367 * Math.PI / 180;
-  const latRad = Number(lat) * Math.PI / 180;
-  const lstRad = lst * Math.PI / 180;
+  if (!dasha) {
+    return null;
+  }
 
-  const asc =
-    Math.atan2(
-      Math.sin(lstRad),
-      Math.cos(lstRad) * Math.cos(obliquity) -
-        Math.tan(latRad) * Math.sin(obliquity)
-    ) * 180 / Math.PI;
-
-  return normalizeDegree(asc);
+  return {
+    system: dasha.system,
+    birth_dasha_lord: dasha.birth_dasha_lord,
+    birth_dasha_balance_years:
+      typeof dasha.birth_dasha_balance_years === "number"
+        ? Math.round(dasha.birth_dasha_balance_years * 100) / 100
+        : null,
+    current: dasha.current
+      ? {
+          lord: dasha.current.lord,
+          start: dasha.current.start,
+          end: dasha.current.end
+        }
+      : null,
+    current_antardasha: dasha.current_antardasha
+      ? {
+          lord: dasha.current_antardasha.lord,
+          start: dasha.current_antardasha.start,
+          end: dasha.current_antardasha.end
+        }
+      : null,
+    moon_nakshatra: dasha.moon_nakshatra
+      ? {
+          name:
+            dasha.moon_nakshatra.name ||
+            dasha.moon_nakshatra.nakshatra ||
+            dasha.moon_nakshatra.nakshatra_name ||
+            null,
+          lord: dasha.moon_nakshatra.lord || null
+        }
+      : null
+  };
 }
 
-// =========================
-// 核心引擎
-// =========================
+export function buildTransitSummary(natal, transitChart) {
+  const signs = [
+    "牡羊座", "金牛座", "雙子座", "巨蟹座",
+    "獅子座", "處女座", "天秤座", "天蠍座",
+    "射手座", "摩羯座", "水瓶座", "雙魚座"
+  ];
 
-export async function buildVedicChart(dateStr, time, lat, lon) {
-  const year = Number(dateStr.slice(0, 4));
+  const ascSign = natal?.ascendant?.sign;
 
-  let ascendant = null;
+  function getHouseFromNatalAsc(sign) {
+    const ascIndex = signs.indexOf(ascSign);
+    const planetIndex = signs.indexOf(sign);
 
-  if (time && lat && lon) {
-    const tropicalAsc = calculateAscendant(dateStr, time, lat, lon);
-    const siderealAsc = tropicalToSidereal(tropicalAsc, year);
-    const sign = degreeToVedicSign(siderealAsc);
+    if (ascIndex === -1 || planetIndex === -1) return null;
 
-    ascendant = {
-      sign: sign.sign,
-      degree: sign.degree
+    return ((planetIndex - ascIndex + 12) % 12) + 1;
+  }
+
+  function getLongitude(planet) {
+    if (typeof planet?.sidereal?.longitude === "number") {
+      return planet.sidereal.longitude;
+    }
+
+    const sign = planet?.sidereal?.sign;
+    const degree = planet?.sidereal?.degree;
+
+    const signIndex = signs.indexOf(sign);
+
+    if (signIndex === -1 || typeof degree !== "number") return null;
+
+    return signIndex * 30 + degree;
+  }
+
+  function normalizeDegree(value) {
+    if (typeof value !== "number") return null;
+    return ((value % 360) + 360) % 360;
+  }
+
+  function getAngularDistance(a, b) {
+    if (typeof a !== "number" || typeof b !== "number") return null;
+
+    const diff = Math.abs(normalizeDegree(a) - normalizeDegree(b));
+    return Math.min(diff, 360 - diff);
+  }
+
+  function getAspect(distance) {
+    if (typeof distance !== "number") return null;
+
+    const aspects = [
+      { type: "conjunction", label: "合相", angle: 0, orb: 6 },
+      { type: "opposition", label: "對分", angle: 180, orb: 6 },
+      { type: "trine", label: "三分", angle: 120, orb: 5 },
+      { type: "square", label: "四分", angle: 90, orb: 4 },
+      { type: "sextile", label: "六合", angle: 60, orb: 3 }
+    ];
+
+    for (const aspect of aspects) {
+      const orb = Math.abs(distance - aspect.angle);
+
+      if (orb <= aspect.orb) {
+        return {
+          type: aspect.type,
+          label: aspect.label,
+          angle: aspect.angle,
+          orb: roundDegree(orb)
+        };
+      }
+    }
+
+    return null;
+  }
+
+  function getTransitPlanet(name) {
+    const p = transitChart?.planets?.find(x => x.name === name);
+    if (!p) return null;
+
+    const nakshatraName = getNakshatraName(p);
+
+    return {
+      key: p.key || null,
+      name: p.name,
+      sign: p.sidereal?.sign || null,
+      degree: typeof p.sidereal?.degree === "number"
+        ? Math.round(p.sidereal.degree * 100) / 100
+        : null,
+      longitude: getLongitude(p),
+      house_from_natal_asc: getHouseFromNatalAsc(p.sidereal?.sign),
+      nakshatra: nakshatraName,
+      nakshatra_name: nakshatraName,
+      retrograde: !!p.retrograde,
+      combust: !!p.combust
     };
   }
 
-  const planets = [];
+  function getNatalPlanetBasic(name) {
+    const p = natal?.planets?.find(x => x.name === name);
+    if (!p) return null;
 
-  for (const planet of PLANETS) {
-    const raw = await fetchPlanetVector(
-  planet.command,
-  dateStr
-);
-    const parsed = parseVectorRaw(raw);
+    const nakshatraName = getNakshatraName(p);
 
-    const retrograde = isRetrograde(parsed);
-
-    const siderealLon = tropicalToSidereal(parsed.longitude, year);
-    const vedic = degreeToVedicSign(siderealLon);
-
-    planets.push({
-      key: planet.key,
-      name: planet.name,
-      sidereal: {
-        sign: vedic.sign,
-        degree: vedic.degree,
-        longitude: siderealLon
-      },
-      nakshatra: getNakshatra(siderealLon),
-      navamsa: {
-        sign: getNavamsaSign(siderealLon)
-      },
-      retrograde,
-      combust: false
-    });
+    return {
+      key: p.key || null,
+      name: p.name,
+      sign: p.sidereal?.sign || null,
+      degree: typeof p.sidereal?.degree === "number"
+        ? Math.round(p.sidereal.degree * 100) / 100
+        : null,
+      longitude: getLongitude(p),
+      house: p.house ?? null,
+      nakshatra: nakshatraName,
+      nakshatra_name: nakshatraName,
+      dignity: p.dignity?.label || "一般",
+      dignity_status: p.dignity?.status || "neutral",
+      retrograde: !!p.retrograde,
+      combust: !!p.combust
+    };
   }
 
-  const moon = planets.find(p => p.name === "月亮");
+  function buildPersonalHighlight(key, planet) {
+    if (!planet?.house_from_natal_asc) return null;
 
-  if (moon) {
-    const rahuLon = normalizeDegree(moon.sidereal.longitude + 180);
-    const ketuLon = normalizeDegree(rahuLon + 180);
+    const house = planet.house_from_natal_asc;
+    const title = `${planet.name}行運第${house}宮`;
 
-    const rahuSign = degreeToVedicSign(rahuLon);
-    const ketuSign = degreeToVedicSign(ketuLon);
+    const parts = [];
 
-    planets.push({
-      key: "rahu",
-      name: "Rahu",
-      sidereal: {
-        sign: rahuSign.sign,
-        degree: rahuSign.degree,
-        longitude: rahuLon
-      },
-      nakshatra: getNakshatra(rahuLon),
-      navamsa: {
-        sign: getNavamsaSign(rahuLon)
-      },
-      retrograde: true,
-      combust: false
-    });
+    if (planet.sign) {
+      parts.push(`${planet.name}目前在${planet.sign}`);
+    }
 
-    planets.push({
-      key: "ketu",
-      name: "Ketu",
-      sidereal: {
-        sign: ketuSign.sign,
-        degree: ketuSign.degree,
-        longitude: ketuLon
-      },
-      nakshatra: getNakshatra(ketuLon),
-      navamsa: {
-        sign: getNavamsaSign(ketuLon)
-      },
-      retrograde: true,
-      combust: false
-    });
+    if (typeof planet.degree === "number") {
+      parts.push(`${planet.degree}°`);
+    }
+
+    if (planet.nakshatra_name) {
+      parts.push(`Nakshatra：${planet.nakshatra_name}`);
+    }
+
+    parts.push(`從你的本命上升${ascSign || "未知上升"}看，落在第${house}宮`);
+
+    if (planet.retrograde) {
+      parts.push("目前為逆行狀態");
+    }
+
+    if (planet.combust) {
+      parts.push("目前有日焚狀態");
+    }
+
+    const description = parts.join("，");
+
+    return {
+      key,
+      planet: planet.name,
+      title,
+      description,
+      summary: `${title}｜${description}`,
+      house_from_natal_asc: house,
+      sign: planet.sign,
+      degree: planet.degree,
+      longitude: planet.longitude,
+      nakshatra: planet.nakshatra,
+      nakshatra_name: planet.nakshatra_name,
+      retrograde: planet.retrograde,
+      combust: planet.combust
+    };
   }
 
-  const houses = buildWholeSignHouses(ascendant);
+  function buildTransitNatalAspects() {
+    const transitPlanetNames = [
+      "太陽", "月亮", "水星", "金星", "火星",
+      "木星", "土星", "Rahu", "Ketu"
+    ];
 
-  if (ascendant) {
-    planets.forEach(p => {
-      p.house = getHouseFromSigns(p.sidereal.sign, ascendant.sign);
-      p.aspects = calculateAspects(p, houses);
-      p.dignity = getPlanetDignity(p.name, p.sidereal.sign);
-    });
+    const natalPlanetNames = [
+      "太陽", "月亮", "水星", "金星", "火星",
+      "木星", "土星", "Rahu", "Ketu"
+    ];
+
+    const results = [];
+
+    for (const transitName of transitPlanetNames) {
+      const transit = planetsByName[transitName];
+      if (!transit?.longitude) continue;
+
+      for (const natalName of natalPlanetNames) {
+        const natalPlanet = getNatalPlanetBasic(natalName);
+        if (!natalPlanet?.longitude) continue;
+
+        const distance = getAngularDistance(transit.longitude, natalPlanet.longitude);
+        const aspect = getAspect(distance);
+
+        if (!aspect) continue;
+
+        const title = `${transit.name}${aspect.label}本命${natalPlanet.name}`;
+
+        const descriptionParts = [
+          `行運${transit.name}目前在${transit.sign || "未知星座"}${typeof transit.degree === "number" ? ` ${transit.degree}°` : ""}`,
+          `你的本命${natalPlanet.name}在${natalPlanet.sign || "未知星座"}${typeof natalPlanet.degree === "number" ? ` ${natalPlanet.degree}°` : ""}`,
+          `形成${aspect.label}`,
+          `容許度${aspect.orb}°`
+        ];
+
+        if (transit.house_from_natal_asc) {
+          descriptionParts.push(`行運星落在你的第${transit.house_from_natal_asc}宮`);
+        }
+
+        if (natalPlanet.house) {
+          descriptionParts.push(`本命${natalPlanet.name}位於第${natalPlanet.house}宮`);
+        }
+
+        results.push({
+          type: "transit_to_natal_planet",
+          title,
+          description: descriptionParts.join("，"),
+          summary: `${title}｜${descriptionParts.join("，")}`,
+          transit_planet: transit.name,
+          natal_planet: natalPlanet.name,
+          aspect: aspect.type,
+          aspect_label: aspect.label,
+          aspect_angle: aspect.angle,
+          orb: aspect.orb,
+          distance: roundDegree(distance),
+          transit: {
+            name: transit.name,
+            sign: transit.sign,
+            degree: transit.degree,
+            longitude: transit.longitude,
+            house_from_natal_asc: transit.house_from_natal_asc,
+            nakshatra: transit.nakshatra_name,
+            retrograde: transit.retrograde,
+            combust: transit.combust
+          },
+          natal: {
+            name: natalPlanet.name,
+            sign: natalPlanet.sign,
+            degree: natalPlanet.degree,
+            longitude: natalPlanet.longitude,
+            house: natalPlanet.house,
+            nakshatra: natalPlanet.nakshatra_name,
+            dignity: natalPlanet.dignity,
+            dignity_status: natalPlanet.dignity_status
+          },
+          priority:
+            getTransitPriority(transit.name) +
+            getNatalPriority(natalPlanet.name) +
+            getAspectPriority(aspect.type) -
+            aspect.orb
+        });
+      }
+    }
+
+    return results.sort((a, b) => b.priority - a.priority);
   }
 
-  const sun = planets.find(p => p.name === "太陽");
+  function buildTransitHouseLordAspects(transitNatalAspects) {
+    const houseLords = natal?.house_lords || [];
+    if (!Array.isArray(houseLords) || !houseLords.length) return [];
 
-  if (sun) {
-    planets.forEach(p => {
-      p.combust = isCombust(p, sun.sidereal.longitude);
-    });
+    const results = [];
+
+    for (const item of transitNatalAspects) {
+      const matchedHouses = houseLords.filter(h => h.lord === item.natal_planet);
+
+      for (const house of matchedHouses) {
+        const title = `${item.transit_planet}${item.aspect_label}第${house.house}宮主${house.lord}`;
+
+        const description = [
+          `你的第${house.house}宮落在${house.sign || "未知星座"}`,
+          `宮主星為${house.lord}`,
+          `行運${item.transit_planet}目前與本命${house.lord}形成${item.aspect_label}`,
+          `容許度${item.orb}°`
+        ].join("，");
+
+        results.push({
+          type: "transit_to_house_lord",
+          title,
+          description,
+          summary: `${title}｜${description}`,
+          house: house.house,
+          house_sign: house.sign || null,
+          house_lord: house.lord,
+          house_lord_natal_house: house.lord_house ?? null,
+          transit_planet: item.transit_planet,
+          natal_planet: item.natal_planet,
+          aspect: item.aspect,
+          aspect_label: item.aspect_label,
+          orb: item.orb,
+          source_aspect: item,
+          priority: item.priority + getHousePriority(house.house)
+        });
+      }
+    }
+
+    return results.sort((a, b) => b.priority - a.priority);
   }
 
-  const houseLords = buildHouseLords(houses, planets);
-  const dasha = moon
-    ? buildVimshottariDasha(dateStr, time, moon.sidereal.longitude)
-    : null;
+  function getTransitPriority(name) {
+    const scores = {
+      "土星": 20,
+      "木星": 18,
+      "Rahu": 17,
+      "Ketu": 17,
+      "火星": 12,
+      "太陽": 9,
+      "金星": 8,
+      "水星": 8,
+      "月亮": 5
+    };
+
+    return scores[name] || 0;
+  }
+
+  function getNatalPriority(name) {
+    const scores = {
+      "上升": 20,
+      "月亮": 18,
+      "太陽": 16,
+      "金星": 13,
+      "火星": 13,
+      "水星": 12,
+      "木星": 12,
+      "土星": 12,
+      "Rahu": 10,
+      "Ketu": 10
+    };
+
+    return scores[name] || 0;
+  }
+
+  function getAspectPriority(type) {
+    const scores = {
+      conjunction: 20,
+      opposition: 17,
+      trine: 13,
+      square: 12,
+      sextile: 8
+    };
+
+    return scores[type] || 0;
+  }
+
+  function getHousePriority(house) {
+    const scores = {
+      1: 18,
+      2: 10,
+      3: 8,
+      4: 13,
+      5: 13,
+      6: 10,
+      7: 16,
+      8: 15,
+      9: 14,
+      10: 18,
+      11: 12,
+      12: 12
+    };
+
+    return scores[house] || 0;
+  }
+
+  function buildImportantPersonalAstrology({
+    personalizedHighlights,
+    transitNatalAspects,
+    transitHouseLordAspects
+  }) {
+    const items = [];
+
+    transitNatalAspects.slice(0, 6).forEach(item => {
+      items.push({
+        type: item.type,
+        title: item.title,
+        description: item.description,
+        summary: item.summary,
+        priority: item.priority,
+        data: item
+      });
+    });
+
+    transitHouseLordAspects.slice(0, 6).forEach(item => {
+      items.push({
+        type: item.type,
+        title: item.title,
+        description: item.description,
+        summary: item.summary,
+        priority: item.priority,
+        data: item
+      });
+    });
+
+    personalizedHighlights.forEach(item => {
+      items.push({
+        type: "transit_house_position",
+        title: item.title,
+        description: item.description,
+        summary: item.summary,
+        priority: getTransitPriority(item.planet) + getHousePriority(item.house_from_natal_asc),
+        data: item
+      });
+    });
+
+    const seen = new Set();
+
+    return items
+      .sort((a, b) => b.priority - a.priority)
+      .filter(item => {
+        const key = `${item.type}_${item.title}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .slice(0, 8);
+  }
+
+  const planets = {
+    sun: getTransitPlanet("太陽"),
+    moon: getTransitPlanet("月亮"),
+    mercury: getTransitPlanet("水星"),
+    venus: getTransitPlanet("金星"),
+    mars: getTransitPlanet("火星"),
+    jupiter: getTransitPlanet("木星"),
+    saturn: getTransitPlanet("土星"),
+    rahu: getTransitPlanet("Rahu"),
+    ketu: getTransitPlanet("Ketu")
+  };
+
+  const planetsByName = {
+    "太陽": planets.sun,
+    "月亮": planets.moon,
+    "水星": planets.mercury,
+    "金星": planets.venus,
+    "火星": planets.mars,
+    "木星": planets.jupiter,
+    "土星": planets.saturn,
+    "Rahu": planets.rahu,
+    "Ketu": planets.ketu
+  };
+
+  const highlights = [];
+
+  if (planets.jupiter?.house_from_natal_asc) {
+    highlights.push(`木星行運第${planets.jupiter.house_from_natal_asc}宮`);
+  }
+
+  if (planets.saturn?.house_from_natal_asc) {
+    highlights.push(`土星行運第${planets.saturn.house_from_natal_asc}宮`);
+  }
+
+  if (planets.rahu?.house_from_natal_asc) {
+    highlights.push(`Rahu行運第${planets.rahu.house_from_natal_asc}宮`);
+  }
+
+  if (planets.ketu?.house_from_natal_asc) {
+    highlights.push(`Ketu行運第${planets.ketu.house_from_natal_asc}宮`);
+  }
+
+  const personalized_highlights = [
+    buildPersonalHighlight("jupiter", planets.jupiter),
+    buildPersonalHighlight("saturn", planets.saturn),
+    buildPersonalHighlight("rahu", planets.rahu),
+    buildPersonalHighlight("ketu", planets.ketu)
+  ].filter(Boolean);
+
+  const transit_natal_aspects = buildTransitNatalAspects();
+
+  const transit_house_lord_aspects =
+    buildTransitHouseLordAspects(transit_natal_aspects);
+
+  const important_personal_astrology = buildImportantPersonalAstrology({
+    personalizedHighlights: personalized_highlights,
+    transitNatalAspects: transit_natal_aspects,
+    transitHouseLordAspects: transit_house_lord_aspects
+  });
 
   return {
-    ascendant,
-    houses,
-    house_lords: houseLords,
+    natal_ascendant: natal?.ascendant || null,
+    transit_date: new Date().toISOString().slice(0, 10),
     planets,
-    dasha
+
+    // 舊欄位：暫時保留，避免 Daily / 其他頁壞掉
+    highlights,
+
+    // 基礎個人行運：行運星落本命第幾宮
+    personalized_highlights,
+
+    // 新增：行運星 × 本命星體
+    transit_natal_aspects,
+
+    // 新增：行運星 × 本命宮主星
+    transit_house_lord_aspects,
+
+    // 新增：給 Flutter / GPT 優先使用的「重要個人星象」
+    important_personal_astrology,
+
+    // 備用別名
+    highlight_cards: personalized_highlights
   };
-}
-
-function calculateAge(dateStr, targetDateStr) {
-  const birth = new Date(`${dateStr}T00:00:00Z`);
-  const target = new Date(`${targetDateStr}T00:00:00Z`);
-
-  return Math.floor(
-    (target - birth) / (365.2425 * 24 * 60 * 60 * 1000)
-  );
-}
-
-export function buildLifePeriods(dateStr, dasha) {
-  if (!dasha?.periods) return [];
-
-  return dasha.periods.map(period => {
-    const startAge = calculateAge(dateStr, period.start);
-    const endAge = calculateAge(dateStr, period.end);
-
-    return {
-      lord: period.lord,
-      start: period.start,
-      end: period.end,
-      start_age: startAge,
-      end_age: endAge,
-    };
-  });
 }
