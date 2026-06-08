@@ -16,6 +16,10 @@ import {
   buildTransitSummary,
 } from "./utils/chartFormatter.js";
 
+import {
+  buildMajorAstrologyEvents
+} from "./services/majorAstrologyEvents.js";
+
 dotenv.config();
 
 const app = express();
