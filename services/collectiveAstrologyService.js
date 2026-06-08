@@ -273,97 +273,19 @@ export function buildHighlightsFromEvents(
     .map((e) => e.title);
 }
 
-// ======================================
-// Long Term Events
-// ======================================
-
-export function buildLongTermEvents(
-  currentPlanets,
-  previousPlanets
+export function uniqueEvents(
+  events = []
 ) {
-  const events = [];
-
-  if (!previousPlanets?.length) {
-    return events;
-  }
-
-  const keys = [
-    "jupiter",
-    "saturn",
-    "rahu",
-    "ketu",
+  return [
+    ...new Map(
+      events.map((e) => [
+        e.title,
+        e,
+      ])
+    ).values(),
   ];
-
-  keys.forEach((key) => {
-    const current =
-      currentPlanets.find(
-        (p) => p.key === key
-      );
-
-    const previous =
-      previousPlanets.find(
-        (p) => p.key === key
-      );
-
-    if (!current || !previous) {
-      return;
-    }
-
-    const currentSign =
-      current.sidereal?.sign;
-
-    const previousSign =
-      previous.sidereal?.sign;
-
-    if (
-      currentSign &&
-      previousSign &&
-      currentSign !== previousSign
-    ) {
-      events.push({
-        type: "sign_change",
-        level: "high",
-        title: `${current.name}進入${currentSign}`,
-        description:
-          `${current.name}從${previousSign}進入${currentSign}`,
-      });
-    }
-
-    const wasRetrograde =
-      previous.retrograde === true;
-
-    const isRetrogradeNow =
-      current.retrograde === true;
-
-    if (
-      !wasRetrograde &&
-      isRetrogradeNow
-    ) {
-      events.push({
-        type: "retrograde_start",
-        level: "high",
-        title: `${current.name}開始逆行`,
-        description:
-          `${current.name}由順行轉為逆行，適合回顧與重新校準相關主題。`,
-      });
-    }
-
-    if (
-      wasRetrograde &&
-      !isRetrogradeNow
-    ) {
-      events.push({
-        type: "direct_start",
-        level: "high",
-        title: `${current.name}恢復順行`,
-        description:
-          `${current.name}由逆行轉為順行，停滯的能量開始重新流動。`,
-      });
-    }
-  });
-
-  return events;
 }
+
 
 // ======================================
 // Daily Collective
@@ -569,19 +491,27 @@ export async function buildCollectiveMonthly({
     const displayPlanets =
       liteChart?.main_planets || {};
 
-    const importantEvents =
+    const baseEvents =
       buildImportantAstrologyEvents(
         rawPlanets,
         "monthly"
       );
 
-    majorAstrologyEvents.push(
-      ...buildMajorAstrologyEvents({
+    const majorEvents =
+      buildMajorAstrologyEvents({
         currentPlanets:
           rawPlanets,
         previousPlanets,
         mode: "monthly",
-      })
+      });
+
+    const importantEvents = [
+      ...baseEvents,
+      ...majorEvents,
+    ];
+
+    majorAstrologyEvents.push(
+      ...majorEvents
     );
 
     previousPlanets =
@@ -630,7 +560,9 @@ export async function buildCollectiveMonthly({
       ).padStart(2, "0")}`,
 
     major_astrology_events:
-      majorAstrologyEvents,
+      uniqueEvents(
+        majorAstrologyEvents
+      ),
 
     weeks,
   };
@@ -678,6 +610,12 @@ export async function buildCollectiveYearly({
     const displayPlanets =
       liteChart?.main_planets || {};
 
+    const baseEvents =
+      buildImportantAstrologyEvents(
+        rawPlanets,
+        "yearly"
+      );
+
     const majorEvents =
       buildMajorAstrologyEvents({
         currentPlanets:
@@ -685,6 +623,11 @@ export async function buildCollectiveYearly({
         previousPlanets,
         mode: "yearly",
       });
+
+    const importantEvents = [
+      ...baseEvents,
+      ...majorEvents,
+    ];
 
     majorAstrologyEvents.push(
       ...majorEvents
@@ -704,11 +647,11 @@ export async function buildCollectiveYearly({
         displayPlanets,
 
       important_events:
-        majorEvents,
+        importantEvents,
 
       highlights:
         buildHighlightsFromEvents(
-          majorEvents
+          importantEvents
         ),
 
       ascendant:
@@ -727,7 +670,9 @@ export async function buildCollectiveYearly({
     year: targetYear,
 
     major_astrology_events:
-      majorAstrologyEvents,
+      uniqueEvents(
+        majorAstrologyEvents
+      ),
 
     months,
   };
@@ -791,13 +736,24 @@ export async function buildCollectiveThreeYear({
       const displayPlanets =
         liteChart?.main_planets || {};
 
-      const majorEvents =
-        buildMajorAstrologyEvents({
-          currentPlanets:
-            rawPlanets,
-          previousPlanets,
-          mode: "three_year",
-        });
+    const baseEvents =
+      buildImportantAstrologyEvents(
+        rawPlanets,
+        "three_year"
+      );
+
+        const majorEvents =
+          buildMajorAstrologyEvents({
+            currentPlanets:
+          rawPlanets,
+        previousPlanets,
+        mode: "three_year",
+      });
+
+    const importantEvents = [
+      ...baseEvents,
+      ...majorEvents,
+    ];
 
       majorAstrologyEvents.push(
         ...majorEvents
@@ -819,11 +775,11 @@ export async function buildCollectiveThreeYear({
           displayPlanets,
 
         important_events:
-          majorEvents,
+          importantEvents,
 
         highlights:
           buildHighlightsFromEvents(
-            majorEvents
+            importantEvents
           ),
 
         ascendant:
@@ -848,7 +804,9 @@ export async function buildCollectiveThreeYear({
       endYear,
 
     major_astrology_events:
-      majorAstrologyEvents,
+      uniqueEvents(
+        majorAstrologyEvents
+      ),
 
     periods,
   };
@@ -881,7 +839,7 @@ export async function buildCollectiveTenYear({
     y++
   ) {
     const transitDate =
-      `${y}-06-15`;
+      `${y}-07-02`;
 
     const chart =
       await buildVedicChart(
@@ -900,13 +858,24 @@ export async function buildCollectiveTenYear({
     const displayPlanets =
       liteChart?.main_planets || {};
 
-    const majorEvents =
-      buildMajorAstrologyEvents({
-        currentPlanets:
+    const baseEvents =
+      buildImportantAstrologyEvents(
+        rawPlanets,
+        "ten_year"
+      );
+
+        const majorEvents =
+          buildMajorAstrologyEvents({
+            currentPlanets:
           rawPlanets,
         previousPlanets,
         mode: "ten_year",
       });
+
+    const importantEvents = [
+      ...baseEvents,
+      ...majorEvents,
+    ];
 
     majorAstrologyEvents.push(
       ...majorEvents
@@ -926,11 +895,11 @@ export async function buildCollectiveTenYear({
         displayPlanets,
 
       important_events:
-        majorEvents,
+        importantEvents,
 
       highlights:
         buildHighlightsFromEvents(
-          majorEvents
+          importantEvents
         ),
 
       ascendant:
@@ -954,7 +923,9 @@ export async function buildCollectiveTenYear({
       endYear,
 
     major_astrology_events:
-      majorAstrologyEvents,
+      uniqueEvents(
+        majorAstrologyEvents
+      ),
 
     years,
   };
