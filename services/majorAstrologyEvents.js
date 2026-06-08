@@ -28,6 +28,13 @@ function angularDistance(a, b) {
   return diff;
 }
 
+const HEAVY_PLANETS = [
+  "jupiter",
+  "saturn",
+  "rahu",
+  "ketu",
+];
+
 // ======================
 // 單日重要星象
 // ======================
@@ -67,8 +74,8 @@ export function scanMajorAspects(
     const pb = getPlanetByKey(planets, b);
 
     if (
-      !pa?.sidereal?.longitude ||
-      !pb?.sidereal?.longitude
+      pa?.sidereal?.longitude == null ||
+      pb?.sidereal?.longitude == null
     ) {
       return;
     }
@@ -82,16 +89,16 @@ export function scanMajorAspects(
 
     if (!aspect) return;
 
+    const weight =
+      HEAVY_PLANETS.includes(a) ||
+      HEAVY_PLANETS.includes(b)
+        ? 5
+        : 3;
+
     events.push({
       type: "major_aspect",
       level: "high",
-      weight:
-        a === "jupiter" ||
-        a === "saturn" ||
-        a === "rahu" ||
-        a === "ketu"
-          ? 5
-          : 3,
+      weight,
       title: `${pa.name}與${pb.name}${aspect}`,
       description: `${pa.name}與${pb.name}形成${aspect}。`,
     });
@@ -156,13 +163,9 @@ export function scanSignChanges(
       events.push({
         type: "sign_change",
         level: "high",
-        weight:
-          key === "jupiter" ||
-          key === "saturn" ||
-          key === "rahu" ||
-          key === "ketu"
-            ? 5
-            : 3,
+        weight: HEAVY_PLANETS.includes(key)
+          ? 5
+          : 3,
         title: `${current.name}進入${currentSign}`,
         description: `${current.name}從${previousSign}進入${currentSign}`,
       });
