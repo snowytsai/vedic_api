@@ -113,13 +113,16 @@ export function buildImportantAstrologyEvents(
     const name =
       p.name || p.key || "行星";
 
+    const signName =
+      p?.sidereal?.sign || "";
+
     if (dignity === "exalted") {
       events.push({
         type: "exalted",
         level: "high",
-        title: `${name}擢升`,
+        title: `${name}位於${signName}（擢升）`,
         description:
-          `${name}位於擢升位置，能量較容易發揮正向力量。`,
+          `${name}目前位於${signName}的擢升位置，能量較容易發揮正向力量。`,
       });
     }
 
@@ -127,9 +130,9 @@ export function buildImportantAstrologyEvents(
       events.push({
         type: "debilitated",
         level: "high",
-        title: `${name}失勢`,
+        title: `${name}位於${signName}（失勢）`,
         description:
-          `${name}位於失勢位置，相關主題需要更多覺察與調整。`,
+          `${name}目前位於${signName}的失勢位置，相關主題需要更多覺察與調整。`,
       });
     }
 
@@ -137,9 +140,9 @@ export function buildImportantAstrologyEvents(
       events.push({
         type: "own_sign",
         level: "medium",
-        title: `${name}本位`,
+        title: `${name}回到${signName}`,
         description:
-          `${name}回到自己的星座，能量較穩定且容易掌握。`,
+          `${name}目前位於自己的守護星座${signName}，相關能量較容易穩定發揮。`,
       });
     }
   });
