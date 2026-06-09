@@ -505,10 +505,10 @@ export async function buildCollectiveMonthly({
         mode: "monthly",
       });
 
-    const importantEvents = [
+    const importantEvents = uniqueEvents([
       ...baseEvents,
       ...majorEvents,
-    ];
+    ]);
 
     majorAstrologyEvents.push(
       ...majorEvents
@@ -624,10 +624,10 @@ export async function buildCollectiveYearly({
         mode: "yearly",
       });
 
-    const importantEvents = [
+    const importantEvents = uniqueEvents([
       ...baseEvents,
       ...majorEvents,
-    ];
+    ]);
 
     majorAstrologyEvents.push(
       ...majorEvents
@@ -750,10 +750,10 @@ export async function buildCollectiveThreeYear({
         mode: "three_year",
       });
 
-    const importantEvents = [
+    const importantEvents = uniqueEvents([
       ...baseEvents,
       ...majorEvents,
-    ];
+    ]);
 
       majorAstrologyEvents.push(
         ...majorEvents
@@ -872,10 +872,10 @@ export async function buildCollectiveTenYear({
         mode: "ten_year",
       });
 
-    const importantEvents = [
+    const importantEvents = uniqueEvents([
       ...baseEvents,
       ...majorEvents,
-    ];
+    ]);
 
     majorAstrologyEvents.push(
       ...majorEvents
