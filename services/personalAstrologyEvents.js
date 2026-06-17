@@ -221,7 +221,12 @@ function buildTransitNatalAspects(natalChart, transitChart) {
 
 function buildTransitHouseLordAspects(transitNatalAspects = []) {
   return transitNatalAspects
-    .filter((a) => a?.natal_planet && a?.natal_planet !== "rahu" && a?.natal_planet !== "ketu")
+    .filter(
+      (a) =>
+        a?.natal_planet &&
+        a?.natal_planet !== "rahu" &&
+        a?.natal_planet !== "ketu"
+    )
     .map((a) => ({
       ...a,
       type: "transit_house_lord_aspect",
@@ -229,6 +234,62 @@ function buildTransitHouseLordAspects(transitNatalAspects = []) {
       description: `${a.transit_planet_name}觸發本命${a.natal_planet_name}，代表它所守護的宮位主題也會被帶動。`,
     }))
     .slice(0, 12);
+}
+
+function buildTransitHouseEntries(natalChart, transitChart) {
+  const transitPlanets = normalizePlanetList(transitChart?.planets || []);
+
+  const importantKeys = [
+    "saturn",
+    "jupiter",
+    "rahu",
+    "ketu",
+    "mars",
+    "venus",
+    "mercury",
+  ];
+
+  const entries = [];
+
+  transitPlanets.forEach((p) => {
+    const key = planetKeyOf(p);
+    if (!importantKeys.includes(key)) return;
+
+    const house =
+      p?.house ||
+      p?.house_from_asc ||
+      p?.house_from_ascendant ||
+      null;
+
+    if (!house) return;
+
+    const name = planetNameOf(p);
+    const sign = siderealSignOf(p);
+
+    const level = ["saturn", "jupiter", "rahu", "ketu"].includes(key)
+      ? "high"
+      : "medium";
+
+    entries.push({
+      type: "transit_house_entry",
+      level,
+      title: `${name}進入本命第${house}宮`,
+      description: `${name}目前運行於你的本命第${house}宮，會強化第${house}宮相關的人生主題。`,
+      transit_planet: key,
+      transit_planet_name: name,
+      house,
+      sign,
+      transit: {
+        sign,
+        degree: siderealDegreeOf(p),
+        longitude: siderealLongitudeOf(p),
+        nakshatra: p?.nakshatra || null,
+        house,
+      },
+    });
+  });
+
+  return entries;
 }
 
 function buildImportantPersonalAstrology(transitNatalAspects = [], limit = 8) {
@@ -248,27 +309,36 @@ function buildImportantPersonalAstrology(transitNatalAspects = [], limit = 8) {
 }
 
 function buildPersonalTransitPackage(natal, transitChart, transitSummary) {
+  const transitHouseEntries = buildTransitHouseEntries(natal, transitChart);
   const transitNatalAspects = buildTransitNatalAspects(natal, transitChart);
-  const transitHouseLordAspects = buildTransitHouseLordAspects(transitNatalAspects);
-  const importantPersonalAstrology = buildImportantPersonalAstrology(transitNatalAspects);
+  const transitHouseLordAspects =
+    buildTransitHouseLordAspects(transitNatalAspects);
+
+  const importantPersonalAstrology = [
+    ...transitHouseEntries,
+    ...buildImportantPersonalAstrology(transitNatalAspects),
+  ].slice(0, 12);
 
   return {
     highlights: importantPersonalAstrology.map((e) => e.title),
     important_events: importantPersonalAstrology,
     important_personal_astrology: importantPersonalAstrology,
+
+    transit_house_entries: transitHouseEntries,
     transit_natal_aspects: transitNatalAspects,
     transit_house_lord_aspects: transitHouseLordAspects,
+
     natal_planets: buildNatalPlanetsForPersonalAstrology(natal),
     planets: transitSummary?.planets || {},
     natal_ascendant: transitSummary?.natal_ascendant || null,
   };
 }
 
-
 export {
   buildNatalPlanetsForPersonalAstrology,
   buildTransitNatalAspects,
   buildTransitHouseLordAspects,
+  buildTransitHouseEntries,
   buildImportantPersonalAstrology,
   buildPersonalTransitPackage,
 };
